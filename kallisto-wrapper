@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+
+'''
+
+'''
+
+import sys, os, glob, shutil
+from argparse import ArgumentParser
+
+THIS_DIR = os.path.split(os.path.realpath(__file__))[0]
+
+import subprocess as sp
+import datetime
+from scripts.logger import Logger
+from scripts.job_wrapper import Job, run_jobs
+
+
+# parse input arguments
+# - paired/unpaired (--paired or --unpaired, require one)
+# - single sample or two samples (--modified, --untreated)
+# - multimappers randomly selected, excluded, or keep all
+# - job submission platform
+# - minimum potential coverage
+# - target sequences
+
+# test input to see if folder or file, then process accordingly
+
+# generate kallisto index
+
+# run pseudomapping
+
+# identify transcripts above some potential coverage threshold
+
+# generate fasta with selected transcripts only
+
+# split sam file(s) into FASTQ or pairs of FASTQ files for each selected target transcript
+
+# run shapemapper on each batch of reads and associated target sequence
+
+
