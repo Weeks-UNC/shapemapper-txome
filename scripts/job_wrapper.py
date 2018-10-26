@@ -6,7 +6,8 @@ import sys
 import time
 import uuid
 
-from util import timestamp, makedirs, indent
+from scripts.util import timestamp, makedirs, indent
+from scripts.globals import god
 
 # TODO: add timeout for hung jobs?
 
@@ -309,7 +310,9 @@ def run_jobs_local(jobs,
                 print(job.cmd)
                 print(". . . from within folder " + job.run_folder)
                 print("at "+timestamp())
-                job.proc = sp.Popen(job.cmd, shell=True, stdout=stdout, stderr=stderr)
+                job.proc = sp.Popen(job.cmd, shell=True,
+                                    executable='/bin/bash',
+                                    stdout=stdout, stderr=stderr)
                 os.chdir(current_dir)
         time.sleep(0.1)
         running_jobs = []
@@ -360,3 +363,32 @@ def run_jobs(jobs,
         return run_jobs_lsf(jobs, max_concurrent_jobs=max_concurrent_jobs)
     elif platform == "sge":
         return run_jobs_sge(jobs, max_concurrent_jobs=max_concurrent_jobs)
+
+
+def stage(dir="out",
+          done="done",
+          cmd=None,
+          cmds=None,
+          name="job"):
+    global god
+    platform = god.platform
+    max_jobs = god.max_jobs
+    if os.path.isfile(done):
+        print("Skipping {} stage and using previous results.".format(stage))
+    else:
+        makedirs(dir)
+        jobs = []
+        if cmds is None:
+            cmds = []
+        if cmd is not None:
+            cmds.append(cmd)
+        for cmd in cmds:
+            jobs.append(Job(cmd,
+                      name=name,
+                      out_folder=dir))
+        success = run_jobs(jobs, platform=platform, max_concurrent_jobs=max_jobs)
+        if success:
+            os.mknod(done)
+            print("Successfully completed {} at {}.".format(name, timestamp()))
+        else:
+            sys.exit(1)

@@ -1,5 +1,5 @@
 import os
-from util import makedirs
+from scripts.util import makedirs
 
 
 class Logger:

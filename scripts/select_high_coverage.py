@@ -32,7 +32,6 @@ for ID in plus_depths:
         selected.append(ID)
 IDs = selected
 
-# TODO: eliminate overlapping CDS IDs?    
-    
+
 for ID in IDs:
     o.write("{}\n".format(ID))

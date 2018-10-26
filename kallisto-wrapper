@@ -4,37 +4,118 @@
 
 '''
 
+import datetime
+start_time = datetime.datetime.now()
+
 import sys, os, glob, shutil
-from argparse import ArgumentParser
+import subprocess as sp
+
+from scripts.logger import Logger
+from scripts.job_wrapper import Job, run_jobs, stage
+from scripts.parse_args import parse_args
+from scripts.util import timestamp, makedirs
+from scripts.globals import god
 
 THIS_DIR = os.path.split(os.path.realpath(__file__))[0]
+RUN_TEST = True
 
-import subprocess as sp
-import datetime
-from scripts.logger import Logger
-from scripts.job_wrapper import Job, run_jobs
+if RUN_TEST:
+    args = '''
+            --paired
+            --modified test_data/modified
+            --untreated test_data/untreated
+            --multimapper-mode random
+            --platform local
+            --min-reads 10
+            --out results_random
+            --target test_data/16S.fa test_data/23S.fa test_data/TPP.fa
+            '''.strip().split()
+else:
+    args = sys.argv[1:]
+
+p = parse_args(args)
+
+outlog_path = p.out+"/"+"kallisto-wrapper_log.txt"
+outlog = Logger(outlog_path,
+                sys.stdout)
+# override stdout and stderr globally to redirect through logger
+sys.stdout = outlog
+sys.stderr = outlog
+
+print("Started kallisto-wrapper at {}".format(timestamp()))
+print("arguments = {}".format(p))
+print("Will write all output to {}.".format(p.out))
+makedirs(p.out)
+
+# parameters used in job_wrapper.py functions
+god.platform = p.platform
+god.max_jobs = p.max_jobs
 
 
-# parse input arguments
-# - paired/unpaired (--paired or --unpaired, require one)
-# - single sample or two samples (--modified, --untreated)
-# - multimappers randomly selected, excluded, or keep all
-# - job submission platform
-# - minimum potential coverage
-# - target sequences
-
-# test input to see if folder or file, then process accordingly
-
+# -----------------------------------------------------------------------------
 # generate kallisto index
+dir = p.out+"/kallisto_index"
+cmd = 'kallisto index -i {dir}/index {target}'.format(dir=dir,
+                                                        target=' '.join(p.target))
+stage(name="kallisto index building",
+      dir=dir,
+      done=p.out+"/kallisto_index_done",
+      cmd=cmd)
 
+
+# -----------------------------------------------------------------------------
 # run pseudomapping
+prev_dir = dir
+dir = p.out+"/kallisto_pseudomap"
+extra_flags = '--single --fragment-length {fragment_length} --sd {fragment_sd}'
+extra_flags = extra_flags.format(fragment_length=p.fragment_length,
+                                 fragment_sd=p.fragment_sd)
+if p.paired:
+    extra_flags = ''
+cmds = []
+for sample in p.input_files.keys():
+    cmd = ('kallisto quant -i {prev_dir}/index --pseudobam --plaintext '
+           '-o {dir}/kallisto_quant_{sample} {inputs} {extra_flags}')
+    cmd = cmd.format(dir=dir,
+                     prev_dir=prev_dir,
+                     target=' '.join(p.target),
+                     sample=sample,
+                     inputs=' '.join(p.input_files[sample]),
+                     extra_flags=extra_flags)
+    cmds.append(cmd)
 
+stage(name="kallisto pseudomapping to targets",
+      dir=dir,
+      done=p.out+"/kallisto_pseudomap_done",
+      cmds=cmds)
+
+kallisto_dir = dir
+
+# -----------------------------------------------------------------------------
 # identify transcripts above some potential coverage threshold
 
+# {kallisto_dir}/kallisto_quant_{sample}/abundance.tsv
+
+# -----------------------------------------------------------------------------
 # generate fasta with selected transcripts only
 
+
+# -----------------------------------------------------------------------------
+# convert bam to SAM for simpler parsing
+# {kallisto_dir}/kallisto_quant_{sample}/pseudoalignments.bam
+
+
+# -----------------------------------------------------------------------------
 # split sam file(s) into FASTQ or pairs of FASTQ files for each selected target transcript
 
+# -----------------------------------------------------------------------------
 # run shapemapper on each batch of reads and associated target sequence
 
 
+# -----------------------------------------------------------------------------
+end_time = datetime.datetime.now()
+delta = end_time - start_time
+hours, remain = divmod(delta.seconds, 3600)
+minutes, seconds = divmod(remain, 60)
+print("kallisto-wrapper completed. Total turnaround time {} hours, {} minutes, {} seconds".format(
+       hours, minutes, seconds))

@@ -1,5 +1,9 @@
+#!/usr/bin/env bash
+
 mkdir -p ../test
 cd ../test
+
+# FIXME: also try with python2 and 3 to check compatible with both
 
 for mmode in exclude random all; do
 
@@ -9,7 +13,7 @@ for mmode in exclude random all; do
 --untreated test_data/untreated \
 --multimapper-mode ${mmode} \
 --platform local \
---min-coverage 100 \
+--min-reads 10 \
 --out results_${mmode} \
 --target test_data/16S.fa test_data/23S.fa test_data/TPP.fa
 
