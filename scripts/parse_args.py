@@ -86,12 +86,16 @@ def parse_args(args):
                     help="Maximum jobs that will be simultaneously submitted for execution.",
                     default=1)
     ap.add_argument("--min-reads", type=int,
-                    help="Minimum reads pseudomapping to a given target for target inclusion in shapemapper runs.",
+                    help="Minimum reads pseudomapping to a target for target inclusion in shapemapper runs. (0 to disable).",
                     default=10)
+    ap.add_argument("--min-mean-coverage", type=int,
+                    help="Minumum estimated mean read depth (from pseudomapping) over the length of a given target for "
+                         "target inclusion in shapemapper runs. (0 to disable).",
+                    default=0)
     ap.add_argument("--multimapper-mode", type=str,
-                    help='Behavior for reads pseudomapping to multiple targets: '+
-                         '"exclude": discard all multimappers, '+
-                         '"random": only pass read to first listed target for multimapper (randomly chosen by kallisto), '+
+                    help='Behavior for reads pseudomapping to multiple targets: '
+                         '"exclude": discard all multimappers, '
+                         '"random": only pass read to first listed target for multimapper (randomly chosen by kallisto), '
                          '"all": duplicate a given read to all mapped targets.')
 
     # NOTE: these arguments are required by kallisto if input is unpaired
@@ -121,7 +125,6 @@ def parse_args(args):
 
     if pa.multimapper_mode not in ["exclude", "random", "all"]:
         raise RuntimeError("'--multimapper-mode' must be one of: 'exclude','random','all'.")
-
 
     pa.input_files = OrderedDict()
     pa.input_files["modified"] = []
