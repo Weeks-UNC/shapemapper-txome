@@ -373,7 +373,7 @@ def stage(dir="out",
     platform = god.platform
     max_jobs = god.max_jobs
     if os.path.isfile(done):
-        print("Skipping {} stage and using previous results.".format(stage))
+        print("Skipping {} stage and using previous results.".format(name))
     else:
         makedirs(dir)
         jobs = []

@@ -62,7 +62,7 @@ god.max_jobs = p.max_jobs
 # generate kallisto index
 dir = p.out+"/kallisto_index"
 cmd = 'kallisto index -i {dir}/index {target}'.format(dir=dir,
-                                                        target=' '.join(p.target))
+                                                      target=' '.join(p.target))
 stage(name="kallisto index building",
       dir=dir,
       done=dir+"/kallisto_index_done",
@@ -83,7 +83,7 @@ for sample in p.input_files.keys():
     if len(p.input_files[sample]) == 0:
         continue
     cmd = ('kallisto quant -i {prev_dir}/index --pseudobam --plaintext '
-           '-o {dir}/kallisto_quant_{sample} {inputs} {extra_flags}')
+           '-o {dir}/{sample} {inputs} {extra_flags}')
     cmd = cmd.format(dir=dir,
                      prev_dir=prev_dir,
                      target=' '.join(p.target),
@@ -102,11 +102,12 @@ kallisto_dir = dir
 # -----------------------------------------------------------------------------
 # identify transcripts above some potential coverage threshold
 
-dir = p.out+"/filter_targets"
+dir = p.out+"/select_targets"
+id_file = "{dir}/selected_ids.txt".format(dir=dir)
 cmd = (
-    '{THIS_DIR}/scripts/filter_target_coverage.py '
+    '{THIS_DIR}/scripts/select_targets.py '
     '--in {input_args} '
-    '--out {dir}/ids.txt '
+    '--out {id_file} '
     '--min-reads {min_reads} '
     '--min-mean-coverage {min_mean_coverage} '
     '--frag-len {frag_len} '
@@ -116,7 +117,7 @@ for sample in p.input_files.keys():
     if len(p.input_files[sample]) == 0:
         continue
     input_args += (
-        '{kallisto_dir}/kallisto_quant_{sample}/abundance.tsv '.format(
+        '{kallisto_dir}/{sample}/abundance.tsv '.format(
             kallisto_dir=kallisto_dir, sample=sample
         )
     )
@@ -127,25 +128,66 @@ cmd = cmd.format(
     min_reads = p.min_reads,
     min_mean_coverage= p.min_mean_coverage,
     frag_len = p.fragment_length,
+    id_file=id_file,
 )
 
-stage(name="target coverage filtering",
+stage(name="target coverage selection",
+      dir=dir,
+      done=dir+"/select_targets_done",
+      cmd=cmd)
+
+
+# -----------------------------------------------------------------------------
+# generate fasta with selected transcripts only
+dir = p.out+"/filter_targets"
+cmd = (
+    '{THIS_DIR}/scripts/filter_targets.py '
+    '--id-file {id_file} '
+    '--target {target} '
+    '--out {dir}/selected_targets.fa '
+       )
+
+cmd = cmd.format(
+    THIS_DIR=THIS_DIR,
+    dir=dir,
+    target=' '.join(p.target),
+    id_file=id_file,
+)
+
+stage(name="target filtering",
       dir=dir,
       done=dir+"/filter_targets_done",
       cmd=cmd)
 
 
 # -----------------------------------------------------------------------------
-# generate fasta with selected transcripts only
-
-
-# -----------------------------------------------------------------------------
 # convert bam to SAM for simpler parsing
-# {kallisto_dir}/kallisto_quant_{sample}/pseudoalignments.bam
+dir = p.out+"/convert_sam"
+cmds = []
+for sample in p.input_files.keys():
+    if len(p.input_files[sample]) == 0:
+        continue
+    cmd = (
+        'mkdir -p {{dir}}/{{sample}} '
+        '&& samtools view -h -o {output} {input}'
+    )
+    cmd = cmd.format(
+        output = "{dir}/{sample}/pseudoalignments.sam",
+        input = "{kallisto_dir}/{sample}/pseudoalignments.bam"
+    )
+    cmd = cmd.format(kallisto_dir=kallisto_dir,
+                     dir=dir,
+                     sample=sample)
+    cmds.append(cmd)
 
+stage(name="sam conversion",
+      dir=dir,
+      done=dir+"/convert_sam_done",
+      cmds=cmds)
 
 # -----------------------------------------------------------------------------
 # split sam file(s) into FASTQ or pairs of FASTQ files for each selected target transcript
+
 
 # -----------------------------------------------------------------------------
 # run shapemapper on each batch of reads and associated target sequence
