@@ -4,6 +4,12 @@
 
 '''
 
+# NOTE: kallisto discards read ID past the first whitespace char, so
+#       these wrappers also adhere to that convention
+
+# NOTE: explicit fragment length is required when using single-end reads, and/or
+# when applying a filter on minimum estimated mean coverage ('--min-mean-coverage' > 0)
+
 import datetime
 start_time = datetime.datetime.now()
 
@@ -28,7 +34,7 @@ if RUN_TEST:
             --platform local
             --min-reads 10
             --out results_random
-            --target test_data/16S.fa test_data/23S.fa test_data/TPP.fa
+            --target test_data/16S.fa test_data/23S.fa test_data/TPP.fa test_data/U1.fa
             '''.strip().split()
 else:
     args = sys.argv[1:]
@@ -59,7 +65,7 @@ cmd = 'kallisto index -i {dir}/index {target}'.format(dir=dir,
                                                         target=' '.join(p.target))
 stage(name="kallisto index building",
       dir=dir,
-      done=p.out+"/kallisto_index_done",
+      done=dir+"/kallisto_index_done",
       cmd=cmd)
 
 
@@ -74,6 +80,8 @@ if p.paired:
     extra_flags = ''
 cmds = []
 for sample in p.input_files.keys():
+    if len(p.input_files[sample]) == 0:
+        continue
     cmd = ('kallisto quant -i {prev_dir}/index --pseudobam --plaintext '
            '-o {dir}/kallisto_quant_{sample} {inputs} {extra_flags}')
     cmd = cmd.format(dir=dir,
@@ -86,7 +94,7 @@ for sample in p.input_files.keys():
 
 stage(name="kallisto pseudomapping to targets",
       dir=dir,
-      done=p.out+"/kallisto_pseudomap_done",
+      done=dir+"/kallisto_pseudomap_done",
       cmds=cmds)
 
 kallisto_dir = dir
@@ -94,8 +102,37 @@ kallisto_dir = dir
 # -----------------------------------------------------------------------------
 # identify transcripts above some potential coverage threshold
 
-# {kallisto_dir}/kallisto_quant_{sample}/abundance.tsv
+dir = p.out+"/filter_targets"
+cmd = (
+    '{THIS_DIR}/scripts/filter_target_coverage.py '
+    '--in {input_args} '
+    '--out {dir}/ids.txt '
+    '--min-reads {min_reads} '
+    '--min-mean-coverage {min_mean_coverage} '
+    '--frag-len {frag_len} '
+       )
+input_args = ''
+for sample in p.input_files.keys():
+    if len(p.input_files[sample]) == 0:
+        continue
+    input_args += (
+        '{kallisto_dir}/kallisto_quant_{sample}/abundance.tsv '.format(
+            kallisto_dir=kallisto_dir, sample=sample
+        )
+    )
+cmd = cmd.format(
+    THIS_DIR=THIS_DIR,
+    dir=dir,
+    input_args=input_args,
+    min_reads = p.min_reads,
+    min_mean_coverage= p.min_mean_coverage,
+    frag_len = p.fragment_length,
+)
 
+stage(name="target coverage filtering",
+      dir=dir,
+      done=dir+"/filter_targets_done",
+      cmd=cmd)
 
 
 # -----------------------------------------------------------------------------
@@ -119,5 +156,5 @@ end_time = datetime.datetime.now()
 delta = end_time - start_time
 hours, remain = divmod(delta.seconds, 3600)
 minutes, seconds = divmod(remain, 60)
-print("kallisto-wrapper completed. Total turnaround time {} hours, {} minutes, {} seconds".format(
+print("\nkallisto-wrapper completed. Total turnaround time {} hours, {} minutes, {} seconds".format(
        hours, minutes, seconds))

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''
 Parse kallisto-estimated transcript abundances and filter
 target IDs by coverage requirements.
@@ -22,33 +23,62 @@ if len(pa.input) > 1:
 
 o = open(pa.out, "w")
 
-def load_depths(abund, frag_length):
-    depths = {}
-    abund.readline()
-    for line in abund:
-        s = line.strip().split()
-        if len(s) < 5:
-            continue
-        # FIXME: index by column header
-        # FIXME: handle paired and unpaired input (not sure about kallisto's format),
-        #        and the case when only one sample is provided
-        ID = s[0]
-        length = int(s[1])
-        est_counts = float(s[3])
-        est_mean_depth = frag_length * est_counts / length
-        depths[ID] = est_mean_depth
-        print str(est_mean_depth)
-    return depths
 
-plus_depths = load_depths(plus_abund, plus_frag_length)
-minus_depths = load_depths(minus_abund, minus_frag_length)
+headers = plus_file.readline().strip().split()
+if minus_file is not None:
+    minus_file.readline()
+idi = headers.index('target_id')
+li = headers.index('length')
+ci = headers.index('est_counts')
 
-selected = []
-for ID in plus_depths:
-    if plus_depths[ID] >= min_mean_depth and minus_depths[ID] >= min_mean_depth:
-        selected.append(ID)
-IDs = selected
+def parse_line(f):
+    dummy = (None, None, None)
+    if f is None:
+        return dummy
+    line = f.readline()
+    if line is None:
+        return dummy
+    s = line.strip().split()
+    if len(s) < max(li, ci) + 1:
+        return dummy
+    id = s[idi]
+    length = float(s[li])
+    counts = float(s[ci])
+    return id, length, counts
 
 
-for ID in IDs:
-    o.write("{}\n".format(ID))
+while True:
+    id1, length1, counts1 = parse_line(plus_file)
+    id2, length2, counts2 = parse_line(minus_file)
+    if id1 is None:
+        break
+
+    if id2 is not None:
+        assert (id1 == id2)
+
+    mean_depth1 = pa.frag_len * counts1 / length1
+    mean_depth2 = None
+    if id2 is not None:
+        mean_depth2 = pa.frag_len * counts2 / length2
+
+    keep_ID = True
+
+    # apply read count filter
+    if pa.min_reads > 0:
+        if counts1 < pa.min_reads:
+            keep_ID = False
+        if counts2 is not None and counts2 < pa.min_reads:
+            keep_ID = False
+
+    # apply mean coverage filter
+    if pa.min_mean_coverage > 0:
+        if mean_depth1 < pa.min_mean_coverage:
+            keep_ID = False
+        if mean_depth2 is not None and mean_depth2 < pa.min_mean_coverage:
+            keep_ID = False
+
+    if keep_ID:
+        o.write("{}\n".format(id1))
+
+
+

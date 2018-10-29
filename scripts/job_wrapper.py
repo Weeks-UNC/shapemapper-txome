@@ -306,12 +306,11 @@ def run_jobs_local(jobs,
                 os.chdir(job.run_folder)
                 stdout = open(job.stdout, "w")
                 stderr = open(job.stderr, "w")
-                print("Running local job with command:")
+                print("\nRunning local job with command:")
                 print(job.cmd)
                 print(". . . from within folder " + job.run_folder)
                 print("at "+timestamp())
                 job.proc = sp.Popen(job.cmd, shell=True,
-                                    executable='/bin/bash',
                                     stdout=stdout, stderr=stderr)
                 os.chdir(current_dir)
         time.sleep(0.1)
