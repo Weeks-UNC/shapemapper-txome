@@ -1,4 +1,4 @@
-import datetime, errno, os, sys
+import datetime, errno, os, sys, string
 
 
 def timestamp():
@@ -15,6 +15,23 @@ def makedirs(path):
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
+
+
+def gen_folder_names():
+    folder_names = list(string.ascii_uppercase)
+    # generate all possible 2-char folder names
+    for i in range(len(string.ascii_uppercase)):
+        for j in range(len(string.ascii_uppercase)):
+            folder_names.append('{}{}'.format(string.ascii_uppercase[i],
+                                              string.ascii_uppercase[j]))
+    # generate all possible 3-char folder names just in case someone has a really large target set
+    for i in range(len(string.ascii_uppercase)):
+        for j in range(len(string.ascii_uppercase)):
+            for k in range(len(string.ascii_uppercase)):
+                folder_names.append('{}{}{}'.format(string.ascii_uppercase[i],
+                                                    string.ascii_uppercase[j],
+                                                    string.ascii_uppercase[k]))
+    return folder_names
 
 
 def indent(s, n=4):

@@ -93,10 +93,11 @@ def parse_args(args):
                          "target inclusion in shapemapper runs. (0 to disable).",
                     default=0)
     ap.add_argument("--multimapper-mode", type=str,
-                    help='Behavior for reads pseudomapping to multiple targets: '
-                         '"exclude": discard all multimappers, '
-                         '"random": only pass read to first listed target for multimapper (randomly chosen by kallisto), '
-                         '"all": duplicate a given read to all mapped targets.')
+                    help='Behavior for a given read pseudomapping to multiple targets: '
+                         '"exclude": discard all, '
+                         '"first": use first listed target, '
+                         '"random": randomly select target, '
+                         '"all": duplicate read to all mapped targets.')
 
     # NOTE: these arguments are required by kallisto if input is unpaired
     ap.add_argument("--fragment-length", type=int, required=False, default=150)
@@ -115,6 +116,18 @@ def parse_args(args):
     ap.add_argument("--target", type=str, nargs='+', required=True,
                     help="FASTA file(s) containing target sequences.")
 
+    ap.add_argument("--shapemapper-args", type=str, required=False,
+                    help=("Additional arguments to pass to each shapemapper "
+                          "run (enclose these in quotes)."))
+
+    ap.add_argument("--nproc", type=int,
+                    help="Number of CPUs available to bowtie2 and kallisto",
+                    default=4)
+
+    ap.add_argument("--max-files-per-folder", type=int,
+                    help="Maximum number of files to create within any folder.",
+                    default=100)
+
     pa = ap.parse_args(args)
 
     if pa.platform not in ['lsf', 'sge', 'local']:
@@ -123,8 +136,8 @@ def parse_args(args):
     if pa.max_jobs <= 0:
         raise RuntimeError("'--max-jobs' must be greater than 0.")
 
-    if pa.multimapper_mode not in ["exclude", "random", "all"]:
-        raise RuntimeError("'--multimapper-mode' must be one of: 'exclude','random','all'.")
+    if pa.multimapper_mode not in ["exclude", "random", "all", "first"]:
+        raise RuntimeError("'--multimapper-mode' must be one of: 'exclude','random','first','all'.")
 
     pa.input_files = OrderedDict()
     pa.input_files["modified"] = []

@@ -9,6 +9,9 @@ import uuid
 from scripts.util import timestamp, makedirs, indent
 from scripts.globals import god
 
+# FIXME: add support for SLURM
+# FIXME: add starcluster cluster name argument (SGE)
+# FIXME: proc constraints for SGE submissions?
 # TODO: add timeout for hung jobs?
 
 class Job:
@@ -59,7 +62,7 @@ def get_lsf_jobs(filter_jobs, all=False):
         # include jobs with any status (will list recently terminated jobs as well)
         cmd += " -a"
     lines = sp.check_output(cmd, shell=True, stderr=open(os.devnull, 'w')).decode().splitlines()[1:]
-    ids = []
+    ids = set().append('hey')
     for line in lines:
         s = str(line).split(None, 7)
         try:
@@ -67,13 +70,13 @@ def get_lsf_jobs(filter_jobs, all=False):
         except IndexError:
             pass
     # limit running job ids to those that we started
-    jobs = []
-    # TODO: there's a faster way to do this, maybe using LSF groups or python sets
+    jobs = set()
+    # TODO: there's probably a faster way to do this, maybe using LSF groups
     for job in filter_jobs:
         if job.id in ids:
-            jobs.append(job)
+            jobs.add(job)
     #print([job.id for job in jobs])
-    return jobs
+    return list(jobs)
 
 
 def get_lsf_returncode(stdout_filename):
@@ -145,9 +148,6 @@ def run_jobs_sge(jobs,
                  max_concurrent_jobs=50):
     assert all([isinstance(job, Job) for job in jobs])
 
-    # FIXME: check what SGE does if a single job fails (by default it seems like
-    #        it might terminate all jobs in the queue?)
-
     queued_jobs = list(jobs)
 
     notify_counter = 0.0
@@ -181,7 +181,7 @@ def run_jobs_sge(jobs,
                                  stderr=job.stderr)
                 print("submitting job with command:")
                 print(cmd)
-                print(". . . from within folder "+job.run_folder)
+                print('from within folder "{}"'.format(job.run_folder))
                 print("at "+timestamp())
                 job.proc = sp.Popen(cmd, shell=True)
                 os.chdir(current_dir)
@@ -247,7 +247,7 @@ def run_jobs_lsf(jobs,
                 cmd = cmd.format(job.id, job.stdout, job.stderr)
                 print("submitting job with command:")
                 print(cmd)
-                print(". . . from within folder "+job.run_folder)
+                print('from within folder "{}"'.format(job.run_folder))
                 print("at "+timestamp())
                 job.proc = sp.Popen(cmd, shell=True)
                 os.chdir(current_dir)
@@ -308,7 +308,7 @@ def run_jobs_local(jobs,
                 stderr = open(job.stderr, "w")
                 print("\nRunning local job with command:")
                 print(job.cmd)
-                print(". . . from within folder " + job.run_folder)
+                print('from within folder "{}"'.format(job.run_folder))
                 print("at "+timestamp())
                 job.proc = sp.Popen(job.cmd, shell=True,
                                     stdout=stdout, stderr=stderr)
@@ -375,6 +375,9 @@ def stage(dir="out",
     if os.path.isfile(done):
         print("Skipping {} stage and using previous results.".format(name))
     else:
+        s = "Running {} stage . . .".format(name)
+        print('_' * len(s))
+        print(s)
         makedirs(dir)
         jobs = []
         if cmds is None:
@@ -384,10 +387,13 @@ def stage(dir="out",
         for cmd in cmds:
             jobs.append(Job(cmd,
                       name=name,
-                      out_folder=dir))
-        success = run_jobs(jobs, platform=platform, max_concurrent_jobs=max_jobs)
+                      out_folder=dir,
+                      bsub_opts=god.bsub_opts))
+        success = run_jobs(jobs,
+                           platform=platform,
+                           max_concurrent_jobs=max_jobs)
         if success:
             os.mknod(done)
-            print("Successfully completed {} at {}.".format(name, timestamp()))
+            print(". . . successfully completed {} at {}.".format(name, timestamp()))
         else:
             sys.exit(1)
