@@ -11,6 +11,7 @@ ap.add_argument("--target", type=str, nargs='+')
 ap.add_argument("--out", type=str, required=True)
 ap.add_argument("--out-dir", type=str, required=True)
 ap.add_argument("--out-fasta-paths", type=str, required=True)
+ap.add_argument("--max-files-per-folder", type=int, default=100)
 
 pa = ap.parse_args()
 
@@ -19,7 +20,7 @@ out = open(pa.out, "w")
 
 
 def parse_fasta(filename):
-    f = open(fa, "rU")
+    f = open(filename, "rU")
     ID = ""
     seq = ""
     for line in f:

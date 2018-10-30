@@ -24,6 +24,7 @@ def reverse_complement(seq):
 ap = AP()
 ap.add_argument("--in", dest='input', type=str, required=True)
 ap.add_argument("--out", type=str, required=True)
+ap.add_argument("--selected-target-ids", type=str, default="")
 ap.add_argument("--max-files-per-folder", type=int, default=2)
 
 g = ap.add_mutually_exclusive_group(required=True)  # not sure if required supported for groups
@@ -37,13 +38,16 @@ makedirs(pa.out)
 
 folder_names = gen_folder_names()
 
+selected_target_ids = None
+if pa.selected_target_ids != "":
+    selected_target_ids = set(open(pa.selected_target_ids, 'rU').read().strip().split())
+
 f = open(pa.input, "rU")
 o1 = None
 o2 = None
 o = None
 folder_index = 0
 file_in_folder_count = 0
-
 
 def open_new_output_files(target_name):
     global o
@@ -70,6 +74,8 @@ def open_new_output_files(target_name):
             folder_name=folder_name,
             target_name=target_name,
         ), 'w')
+    # FIXME: either have an off-by-one error here, or am not correctly
+    # handling skipped targets
     file_in_folder_count += 1
     if pa.paired:
         file_in_folder_count += 1
@@ -89,10 +95,10 @@ for line in f:
     qual = fields[10]
     r2 = flags & 128
     reversed = flags & 16
-    if reversed:
-        seq = reverse_complement(seq)
-        qual = qual[::-1]
-    if current_target is None or target != current_target:
+    do_write = True
+    if selected_target_ids is not None and target not in selected_target_ids:
+        do_write = False
+    if do_write and (current_target is None or target != current_target):
         open_new_output_files(target)
         current_target = target
     o_handle = o
@@ -100,4 +106,8 @@ for line in f:
         o_handle = o1
         if r2:
             o_handle = o2
-    o_handle.write("@{}\n{}\n+\n{}\n".format(ID, seq, qual))
+    if do_write:
+        if reversed:
+            seq = reverse_complement(seq)
+            qual = qual[::-1]
+        o_handle.write("@{}\n{}\n+\n{}\n".format(ID, seq, qual))

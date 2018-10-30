@@ -34,8 +34,8 @@ RUN_TEST = True
 if RUN_TEST:
     args = '''
             --paired
-            --modified test_data/modified
-            --untreated test_data/untreated
+            --modified test_data/modified_10k
+            --untreated test_data/untreated_10k
             --multimapper-mode first
             --platform local
             --min-reads 10
@@ -48,7 +48,7 @@ if RUN_TEST:
                      test_data/16S_dup.fa
                      test_data/16S_dup2.fa
             '''.strip().split()
-    args += ['--shapemapper-args', '--random-primer-len 9']
+    args += ['--shapemapper-args', '--random-primer-len 9 --min-depth 5']
 else:
     args = sys.argv[1:]
 
@@ -72,6 +72,20 @@ makedirs(p.out)
 god.platform = p.platform
 god.max_jobs = p.max_jobs
 god.bsub_opts = "-n{} -R span[hosts=1]".format(p.nproc)
+
+# -----------------------------------------------------------------------------
+# check fasta target names for characters that don't play nicely with bowtie2
+dir = p.out+"/fasta_check"
+cmd = (
+    '{THIS_DIR}/scripts/check_fasta_names.py '
+    '--target {target} '
+).format(THIS_DIR=THIS_DIR,
+         dir=dir,
+         target=' '.join(p.target))
+stage(name="checking fasta target names",
+      dir=dir,
+      done=dir+"/fasta_check_done",
+      cmd=cmd)
 
 # -----------------------------------------------------------------------------
 # generate kallisto index
@@ -165,11 +179,11 @@ cmd = (
     '--target {target} '
     '--out "{dir}/selected_targets.fa" '
     '--out-dir "{dir}/single_seqs" '
-    '--out-fasta-locations "{fasta_locations_file}" '
+    '--out-fasta-paths "{fasta_locations_file}" '
     '--max-files-per-folder {max_files_per_folder}'
 )
 
-fasta_locations_file = '{dir}/fasta_locations.txt'
+fasta_locations_file = '{dir}/fasta_locations.txt'.format(dir=dir)
 cmd = cmd.format(
     THIS_DIR=THIS_DIR,
     dir=dir,
@@ -206,7 +220,7 @@ for sample in p.input_files.keys():
                      sample=sample)
     cmds.append(cmd)
 
-stage(name="sam conversion",
+stage(name="SAM conversion",
       dir=dir,
       done=dir+"/sam_conversion_done",
       cmds=cmds)
@@ -303,12 +317,14 @@ for sample in p.input_files.keys():
         '&& '
         '{{THIS_DIR}}/scripts/split_sam_to_fastqs.py '
         '--in "{input}" '
+        '--selected-target-ids "{id_file}" '
         '--out "{output}" '
         '{paired_arg} '
         '--max-files-per-folder {max_files_per_folder}'
     )
     cmd = cmd.format(
         output = "{dir}/{sample}",
+        id_file = id_file,
         input = "{sorted_sam_dir}/{sample}/pseudoalignments.sam",
         paired_arg = paired_arg,
         max_files_per_folder = p.max_files_per_folder,
@@ -332,6 +348,9 @@ fastq_dir = dir
 dir = p.out+"/shapemapper"
 cmds = []
 
+# FIXME: maybe move this garbage to a separate script or at least
+# add a check for stage done file before loading fasta paths
+
 # load fasta paths indexed by target name
 fa_paths = {}
 f = open(fasta_locations_file, 'rU')
@@ -347,55 +366,57 @@ for sample in p.input_files.keys():
     if len(p.input_files[sample]) == 0:
         fastqs[sample] = None
         continue
-    folders[sample] = [f for f in os.listdir(fastq_dir)
-                       if os.path.isdir(fastq_dir+'/'+f)]
+    folders[sample] = [f for f in os.listdir(fastq_dir + '/' + sample)
+                       if os.path.isdir(fastq_dir+'/'+sample+'/'+f)]
     for folder in folders[sample]:
+        filenames = os.listdir(fastq_dir + '/' + sample + '/' + folder)
         if p.paired:
-            r1_filenames = sorted([f for f in os.listdir(fastq_dir+'/'+folder)
-                            if f.endswith("_R1.fastq")])
-            r2_filenames = sorted([f for f in os.listdir(fastq_dir + '/' + folder)
-                            if f.endswith("_R2.fastq")])
+            r1_filenames = sorted([f for f in filenames
+                                    if f.endswith("_R1.fastq")])
+            r2_filenames = sorted([f for f in filenames
+                                    if f.endswith("_R2.fastq")])
             fastqs[sample][folder] = list(zip(r1_filenames, r2_filenames))
         else:
-            r1_filenames = sorted([f for f in os.listdir(fastq_dir + '/' + folder)
-                            if f.endswith(".fastq")])
+            r1_filenames = sorted([f for f in filenames
+                                   if f.endswith(".fastq")])
             r2_filenames = [None] * len(r1_filenames)
             fastqs[sample][folder] = list(zip(r1_filenames, r2_filenames))
 
 for folder in folders["modified"]:
     # FIXME: option to skip completed shapemapper jobs
     for i in range(len(fastqs["modified"][folder])):
+        fastq_pair = fastqs["modified"][folder][i]
         if p.paired:
-            name = fastqs["modified"][0].rstrip('_R1.fastq')
+            name = fastq_pair[0].rstrip('_R1.fastq')
         else:
-            name = fastqs["modified"][0].rstrip('.fastq')
+            name = fastq_pair[0].rstrip('.fastq')
 
         cmd = (
-            'mkdir -p "{dir}/{folder}/{name}" '
-            '&& '
-            'shapemapper '
-            '--name "{name}" '
-            '--target "{target}" '
-            '--out "{dir}/{folder}/{name}" '
-            '--temp "{dir}/{folder}/{name}/temp" '
-            '--log "{dir}/{folder}/{name}/log.txt" '
-            '--overwrite '
-            '--nproc {nproc} '
-            '{shapemapper_args} '
+            "mkdir -p '{dir}/{folder}/{name}' "
+            "&& "
+            "shapemapper "
+            "--name '{name}' "
+            "--target '{target}' "
+            "--out '{dir}/{folder}/{name}' "
+            "--temp '{dir}/{folder}/{name}/temp' "
+            "--log '{dir}/{folder}/{name}/log.txt' "
+            "--overwrite "
+            "--nproc {nproc} "
+            "{shapemapper_args} "
         )
 
         for sample in ["modified", "untreated"]:
             if fastqs[sample] is None:
                 continue
             if p.paired:
-                cmd += '--{sample} --R1 "{r1}" --R2 "{r2}" '.format(
-                    r1 = fastq_dir + '/' + folder + '/' + fastqs[sample][0],
-                    r2 = fastq_dir + '/' + folder + '/' + fastqs[sample][1],
+                cmd += "--{sample} --R1 '{r1}' --R2 '{r2}' ".format(
+                    r1 = fastq_dir + '/' + sample + '/' + folder + '/' + fastq_pair[0],
+                    r2 = fastq_dir + '/' + sample + '/' + folder + '/' + fastq_pair[1],
                     sample=sample,
                 )
             else:
-                cmd += '--{sample} --U "{r1}" '.format(
-                    r1 = fastq_dir + '/' + folder + '/' + fastqs[sample][0],
+                cmd += "--{sample} --U '{r1}' ".format(
+                    r1 = fastq_dir + '/' + sample + '/' + folder + '/' + fastq_pair[0],
                     sample=sample,
                 )
         cmd = cmd.format(
@@ -404,6 +425,7 @@ for folder in folders["modified"]:
             folder = folder,
             target = fa_paths[name],
             nproc = p.nproc,
+            shapemapper_args = p.shapemapper_args,
         )
         cmds.append(cmd)
 

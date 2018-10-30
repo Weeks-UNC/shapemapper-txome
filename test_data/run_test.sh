@@ -3,6 +3,7 @@
 mkdir -p ../test
 cd ../test
 
+# run full dataset tests on longleaf (local mode, but submit this script as a job)
 # FIXME: also try with python2 and 3 to check compatible with both
 # FIXME: also run shapemapper directly to check comparable depths
 # FIXME: check if shapemapper-args passed through correctly and
