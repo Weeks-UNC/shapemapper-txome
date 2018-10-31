@@ -31,17 +31,10 @@ try:
             --paired
             --modified test_data/modified_10k
             --untreated test_data/untreated_10k
-            --multimapper-mode first
-            --platform local
-            --min-reads 10
-            --max-files-per-folder 2
             --out test
             --target test_data/16S.fa
                      test_data/23S.fa
                      test_data/TPP.fa
-                     test_data/U1.fa
-                     test_data/16S_dup.fa
-                     test_data/16S_dup2.fa
             '''.strip().split()
     args += ['--shapemapper-args', '--random-primer-len 9']
 except ValueError:
