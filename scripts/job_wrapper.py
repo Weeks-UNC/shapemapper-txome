@@ -14,6 +14,11 @@ from scripts.globals import god
 # FIXME: proc constraints for SGE submissions?
 # TODO: add timeout for hung jobs?
 
+# fully testing job wrapper interface would require some docker finesse -
+# not sure how easy it is to spin up a simple starcluster, LSF, or SLURM system, since
+# they usually involve multiple nodes
+
+
 class Job:
     def __init__(self,
                  cmd,

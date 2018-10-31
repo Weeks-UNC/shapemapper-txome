@@ -1,17 +1,6 @@
 #!/usr/bin/env python
 
-# tested with:
-# kallisto 0.44.0 
-# samtools 1.2 and 1.8
-# sort (GNU coreutils) 8.21  and 8.22
-# python 2.7.6 and 2.7.15
-
-# fully testing job wrapper interface would require some docker finesse - 
-# not sure how easy it is to spin up a simple starcluster, LSF, or SLURM system, since
-# they usually involve multiple nodes
-
 import datetime
-
 start_time = datetime.datetime.now()
 
 import sys, os
