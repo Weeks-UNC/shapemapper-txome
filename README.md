@@ -90,14 +90,14 @@ on large datasets.
 
 ### Example usage
 
-    kallisto-txome --shapemapper-args '--random-primer-len 9' --paired --modified modified_fastqs --untreated untreated_fastqs --target 16S.fa 23S.fa TPP.fa
+    ``kallisto-txome --shapemapper-args '--random-primer-len 9' --paired --modified modified_fastqs --untreated untreated_fastqs --target 16S.fa 23S.fa TPP.fa``
 
 
 ### Testing
 
 To run an incomplete testing dataset through the full workflow, run
 
-    kallisto-txome --test
+    ``kallisto-txome --test``
 
 This should complete without error in about 1 minute, producing
 the folder `test`. Note: due to the low read depth, 
