@@ -1,4 +1,4 @@
-## kallisto-txome
+# kallisto-txome
 
 Wrapper scripts for running [ShapeMapper2](https://github.com/Weeks-UNC/shapemapper2) 
 on large numbers of transcript targets. Performs a fast
@@ -85,12 +85,13 @@ separate `shapemapper` instances on each target and associated reads.
 
 ### Example usage
 
-    kallisto-wrapper --paired --modified modified_sample --untreated untreated_sample --target 16S.fa 23S.fa TPP.fa --shapemapper-args '--random-primer-len 9'
+    kallisto-txome --paired --modified modified_sample --untreated untreated_sample --target 16S.fa 23S.fa TPP.fa --shapemapper-args '--random-primer-len 9'
 
 
 ### Notes
 
 Unpaired inputs are currently untested.
 
-Job submission platform support is currently untested, and probably broken for SGE.
-LSF might be functional.
+Job submission platform support is currently untested (that is, 
+setting `--platform` to anything other than `local`).
+SGE is probably broken; LSF might be functional.
