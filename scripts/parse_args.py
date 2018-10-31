@@ -1,5 +1,6 @@
 import os
 from argparse import ArgumentParser
+import argparse
 from collections import OrderedDict
 
 
@@ -77,14 +78,22 @@ def check_fastq(path):
 
 
 def parse_args(args):
-    ap = ArgumentParser()
+    ap = ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    g = ap.add_mutually_exclusive_group(required=True) # not sure if required supported for groups
+    g.add_argument("--paired", dest="paired", action="store_true")
+    g.add_argument("--unpaired", dest="paired", action="store_false")
+    ap.set_defaults(paired=True)
+
+    ap.add_argument("--modified", type=str, nargs='+', required=True, default=argparse.SUPPRESS,
+                    help="Compressed or uncompressed FASTQ files, listed in pairs of R1 R2, or folders of the same (treated sample).")
+    ap.add_argument("--untreated", type=str, nargs='+', required=False, default=argparse.SUPPRESS,
+                    help="Compressed or uncompressed FASTQ files, listed in pairs of R1 R2, or folders of the same (untreated sample).")
+
+    ap.add_argument("--target", type=str, nargs='+', required=True, default=argparse.SUPPRESS,
+                    help="FASTA file(s) containing target sequences.")
+
     ap.add_argument("--out", type=str, help="Output folder", default="output")
-    ap.add_argument("--platform", type=str,
-                    help='Subprocess execution platform: "lsf", "local", or "sge"',
-                    required=True)
-    ap.add_argument("--max-jobs", type=int,
-                    help="Maximum jobs that will be simultaneously submitted for execution.",
-                    default=1)
+
     ap.add_argument("--min-reads", type=int,
                     help="Minimum reads pseudomapping to a target for target inclusion in shapemapper runs. (0 to disable).",
                     default=10)
@@ -92,7 +101,7 @@ def parse_args(args):
                     help="Minumum estimated mean read depth (from pseudomapping) over the length of a given target for "
                          "target inclusion in shapemapper runs. (0 to disable).",
                     default=0)
-    ap.add_argument("--multimapper-mode", type=str,
+    ap.add_argument("--multimapper-mode", type=str, default='exclude',
                     help='Behavior for a given read pseudomapping to multiple targets: '
                          '"exclude": discard all, '
                          '"first": use first listed target, '
@@ -100,25 +109,23 @@ def parse_args(args):
                          '"all": duplicate read to all mapped targets.')
 
     # NOTE: these arguments are required by kallisto if input is unpaired
-    ap.add_argument("--fragment-length", type=int, required=False, default=150)
-    ap.add_argument("--fragment-sd", type=int, required=False, default=20)
+    ap.add_argument("--fragment-length", type=int, required=False, default=150,
+                    help='Expected mean insert fragment size. Required if input '
+                         'is unpaired, or if --min-mean-coverage is > 0.')
+    ap.add_argument("--fragment-sd", type=int, required=False, default=20,
+                    help="Expected fragment size standard deviation.")
 
-    g = ap.add_mutually_exclusive_group(required=True) # not sure if required supported for groups
-    g.add_argument("--paired", dest="paired", action="store_true")
-    g.add_argument("--unpaired", dest="paired", action="store_false")
-    ap.set_defaults(paired=True)
+    ap.add_argument("--platform", type=str,
+                    help='Subprocess execution platform: "lsf", "local", or "sge"',
+                    default='local')
 
-    ap.add_argument("--modified", type=str, nargs='+', required=True,
-                    help="Compressed or uncompressed FASTQ files, listed in pairs of R1 R2, or folders of the same (treated sample).")
-    ap.add_argument("--untreated", type=str, nargs='+', required=False,
-                    help="Compressed or uncompressed FASTQ files, listed in pairs of R1 R2, or folders of the same (untreated sample).")
+    ap.add_argument("--max-jobs", type=int,
+                    help="Maximum jobs that will be simultaneously submitted for execution.",
+                    default=1)
 
-    ap.add_argument("--target", type=str, nargs='+', required=True,
-                    help="FASTA file(s) containing target sequences.")
-
-    ap.add_argument("--shapemapper-args", type=str, required=False,
+    ap.add_argument("--shapemapper-args", type=str, required=False, default=argparse.SUPPRESS,
                     help=("Additional arguments to pass to each shapemapper "
-                          "run (enclose these in quotes)."))
+                          "run (enclose these in quotes on the commandline)."))
 
     ap.add_argument("--nproc", type=int,
                     help="Number of CPUs available to bowtie2 and kallisto",

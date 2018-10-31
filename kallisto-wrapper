@@ -11,16 +11,25 @@
 # when applying a filter on minimum estimated mean coverage ('--min-mean-coverage' > 0)
 
 # tested with:
-# kallisto 0.44.0
-# samtools 1.2
-# sort (GNU coreutils) 8.21
-# python 2.7.6
+# kallisto 0.44.0 
+# samtools 1.2 and 1.8
+# sort (GNU coreutils) 8.21  and 8.22
+# python 2.7.6 and 2.7.15
+
+# fully testing job wrapper interface would require some docker finesse - 
+# not sure how easy it is to spin up a simple starcluster, LSF, or SLURM system, since
+# they usually involve multiple nodes
+
+# FIXME: one-off error in shapemapper folder hierarchy
+# FIXME: test unpaired and single sample inputs
+# FIXME: make some scatter plots for DMS data? high reactivities could result in fewer mapped reads
 
 import datetime
 start_time = datetime.datetime.now()
 
 import sys, os
 import subprocess as sp
+from argparse import ArgumentParser as AP
 
 from scripts.logger import Logger
 from scripts.job_wrapper import Job, run_jobs, stage
@@ -29,9 +38,9 @@ from scripts.util import timestamp, makedirs, gen_folder_names
 from scripts.globals import god
 
 THIS_DIR = os.path.split(os.path.realpath(__file__))[0]
-RUN_TEST = True
 
-if RUN_TEST:
+try:
+    sys.argv[1:].index('--test')
     args = '''
             --paired
             --modified test_data/modified_10k
@@ -48,8 +57,8 @@ if RUN_TEST:
                      test_data/16S_dup.fa
                      test_data/16S_dup2.fa
             '''.strip().split()
-    args += ['--shapemapper-args', '--random-primer-len 9 --min-depth 5']
-else:
+    args += ['--shapemapper-args', '--random-primer-len 9']
+except ValueError:
     args = sys.argv[1:]
 
 p = parse_args(args)
@@ -381,6 +390,8 @@ for sample in p.input_files.keys():
                                    if f.endswith(".fastq")])
             r2_filenames = [None] * len(r1_filenames)
             fastqs[sample][folder] = list(zip(r1_filenames, r2_filenames))
+
+# FIXME: use separate folder counter here, not tied to source fastq locations
 
 for folder in folders["modified"]:
     # FIXME: option to skip completed shapemapper jobs

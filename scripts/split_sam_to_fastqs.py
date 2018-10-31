@@ -5,17 +5,6 @@ from argparse import ArgumentParser as AP
 
 from util import makedirs, gen_folder_names
 
-# def makedirs(path):
-#     """
-#     Create path, and don't raise an error if the folder already exists
-#     (similar to os.makedirs(path, exist_ok=True) in more recent versions of python)
-#     """
-#     try:
-#         os.makedirs(path)
-#     except OSError as exception:
-#         if exception.errno != errno.EEXIST:
-#             raise
-
 
 def reverse_complement(seq):
     d = {'A':'T', 'T':'A', 'G':'C', 'C':'G'}
