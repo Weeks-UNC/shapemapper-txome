@@ -95,11 +95,10 @@ on large datasets.
 
 ### Testing
 
-To run an incomplete testing dataset through the full workflow, run
-
   ``kallisto-txome --test``
 
-This should complete without error in about 1 minute, producing
+This will run on a partial dataset included with these scripts. 
+It should complete without error in about 1 minute, producing
 the folder `test`. Note: due to the low read depth, 
 SHAPE reactivity profiles from this dataset are not usable.
 
