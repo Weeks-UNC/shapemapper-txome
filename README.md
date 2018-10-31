@@ -1,9 +1,15 @@
 # kallisto-txome
+*Copyright 2018 Steven Busan*. This project is licensed under the terms of the 
+MIT license.
 
 Wrapper scripts for running [ShapeMapper2](https://github.com/Weeks-UNC/shapemapper2) 
 on large numbers of transcript targets. Performs a fast
 pseudoalignment with `kallisto`, then sorts and splits output by target and runs
 separate `shapemapper` instances on each target and associated reads.
+
+This is a practical, if perhaps not ideal solution for large-scale 
+MaP studies, since sequence alignment is effectively performed twice: 
+once by `kallisto`, and again by `bowtie2` within `shapemapper`. 
 
 
 ### Dependencies
@@ -88,10 +94,40 @@ separate `shapemapper` instances on each target and associated reads.
     kallisto-txome --paired --modified modified_sample --untreated untreated_sample --target 16S.fa 23S.fa TPP.fa --shapemapper-args '--random-primer-len 9'
 
 
+### Testing
+
+To run an incomplete testing dataset through the full workflow, run
+
+    kallisto-txome --test
+
+This should complete without error in under 5 minutes, producing
+the folder `test`. Note: due to the low read depth, 
+SHAPE reactivity profiles from this dataset are not usable.
+
+
 ### Notes
+
+Final shapemapper outputs will be located in `output/shapemapper`,
+inside arbitrary subdirectories to avoid large numbers of files
+in any given folder.
+
+The scripts provided here are not optimized to minimize disk usage. Expect
+output and intermediate files to have a total size 10-15x that of the
+compressed FASTQ input files.
+
+Default behavior is to discard any targets with fewer than 10
+total reads pseudoaligning in either sample (controlled with
+the `--min-reads` parameter). An alternative filter requires
+a minimum estimated average read depth (controlled with the
+`--min-mean-coverage` parameter, and disabled by default). If
+enabled, this filter requires the `--fragment-length`
 
 Unpaired inputs are currently untested.
 
 Job submission platform support is currently untested (that is, 
 setting `--platform` to anything other than `local`).
 SGE is probably broken; LSF might be functional.
+
+Kallisto discards read ID past the first whitespace char, so
+these scripts also adhere to that convention. 
+

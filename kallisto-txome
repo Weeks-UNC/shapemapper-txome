@@ -4,12 +4,6 @@
 
 '''
 
-# NOTE: kallisto discards read ID past the first whitespace char, so
-#       these wrappers also adhere to that convention
-
-# NOTE: explicit fragment length is required when using single-end reads, and/or
-# when applying a filter on minimum estimated mean coverage ('--min-mean-coverage' > 0)
-
 # tested with:
 # kallisto 0.44.0 
 # samtools 1.2 and 1.8
@@ -19,10 +13,6 @@
 # fully testing job wrapper interface would require some docker finesse - 
 # not sure how easy it is to spin up a simple starcluster, LSF, or SLURM system, since
 # they usually involve multiple nodes
-
-# FIXME: one-off error in shapemapper folder hierarchy
-# FIXME: test unpaired and single sample inputs
-# FIXME: make some scatter plots for DMS data? high reactivities could result in fewer mapped reads
 
 import datetime
 start_time = datetime.datetime.now()
