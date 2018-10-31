@@ -14,11 +14,11 @@ on large datasets.
 ### Dependencies
 
 - 64-bit Linux
-- Python >= 2.7 (tested with 2.7.6, 2.7.15, and 3.5.5)
-- [Kallisto](https://pachterlab.github.io/kallisto/) (tested with 0.44.0)
+- python >= 2.7 (tested with 2.7.6, 2.7.15, and 3.5.5)
+- [kallisto](https://pachterlab.github.io/kallisto/) (tested with 0.44.0)
 - [samtools](http://www.htslib.org/) (tested with 1.2 and 1.8)
 - sort (tested with GNU coreutils sort 8.21 and 8.22)
-- [ShapeMapper2]() (tested with 2.1.2 and 2.1.3)
+- [ShapeMapper2](https://github.com/Weeks-UNC/shapemapper2) (tested with 2.1.2 and 2.1.3)
 
 
 ### Parameters
@@ -130,3 +130,19 @@ SGE is probably broken; LSF might be functional.
 Kallisto discards read ID past the first whitespace char, so
 these scripts also adhere to that convention. 
 
+
+### Validation
+
+On a dataset from extracted _E. coli_ ribosomes modified
+with the SHAPE reagent 1-methyl-7-nitroisatoic anhydride (1M7),
+`kallisto-txome` produces nearly identical mutation rates above
+background and effective read depths as running `shapemapper`
+directly.
+
+![1M7 example](images/1M7_example.png)
+
+On a dataset from extracted _E. coli_ ribosomes modified with
+2-methylnicotinic acid imidazolide (NAI), mutation rates and
+read depths are again nearly identical.
+
+![NAI example](images/NAI_example.png)
