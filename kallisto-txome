@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-'''
-
-'''
-
 # tested with:
 # kallisto 0.44.0 
 # samtools 1.2 and 1.8
@@ -15,16 +11,16 @@
 # they usually involve multiple nodes
 
 import datetime
+
 start_time = datetime.datetime.now()
 
 import sys, os
-import subprocess as sp
-from argparse import ArgumentParser as AP
 
 from scripts.logger import Logger
-from scripts.job_wrapper import Job, run_jobs, stage
+from scripts.job_wrapper import stage
+from scripts.shapemapper_wrapper import fmt_shapemapper_cmds
 from scripts.parse_args import parse_args
-from scripts.util import timestamp, makedirs, gen_folder_names
+from scripts.util import timestamp, makedirs
 from scripts.globals import god
 
 THIS_DIR = os.path.split(os.path.realpath(__file__))[0]
@@ -53,14 +49,14 @@ except ValueError:
 
 p = parse_args(args)
 
-outlog_path = p.out+"/"+"kallisto-wrapper_log.txt"
+outlog_path = p.out + "/" + "kallisto-txome_log.txt"
 outlog = Logger(outlog_path,
                 sys.stdout)
 # override stdout and stderr globally to redirect through logger
 sys.stdout = outlog
 sys.stderr = outlog
 
-s = "Started kallisto-wrapper at {}".format(timestamp())
+s = "Started kallisto-txome at {}".format(timestamp())
 print('#' * len(s))
 print(s)
 print("arguments = {}".format(p))
@@ -74,7 +70,8 @@ god.bsub_opts = "-n{} -R span[hosts=1]".format(p.nproc)
 
 # -----------------------------------------------------------------------------
 # check fasta target names for characters that don't play nicely with bowtie2
-dir = p.out+"/fasta_check"
+# and/or bbmerge
+dir = p.out + "/fasta_check"
 cmd = (
     '{THIS_DIR}/scripts/check_fasta_names.py '
     '--target {target} '
@@ -83,24 +80,23 @@ cmd = (
          target=' '.join(p.target))
 stage(name="checking fasta target names",
       dir=dir,
-      done=dir+"/fasta_check_done",
+      done=dir + "/fasta_check_done",
       cmd=cmd)
 
 # -----------------------------------------------------------------------------
 # generate kallisto index
-dir = p.out+"/kallisto_index"
+dir = p.out + "/kallisto_index"
 cmd = 'kallisto index -i {dir}/index {target}'.format(dir=dir,
                                                       target=' '.join(p.target))
 stage(name="kallisto index building",
       dir=dir,
-      done=dir+"/kallisto_index_building_done",
+      done=dir + "/kallisto_index_building_done",
       cmd=cmd)
-
 
 # -----------------------------------------------------------------------------
 # run pseudomapping
 prev_dir = dir
-dir = p.out+"/kallisto_pseudomap"
+dir = p.out + "/kallisto_pseudomap"
 extra_flags = '--single --fragment-length {fragment_length} --sd {fragment_sd}'
 extra_flags = extra_flags.format(fragment_length=p.fragment_length,
                                  fragment_sd=p.fragment_sd)
@@ -124,15 +120,14 @@ for sample in p.input_files.keys():
 
 stage(name="kallisto pseudomapping to targets",
       dir=dir,
-      done=dir+"/kallisto_pseudomapping_done",
+      done=dir + "/kallisto_pseudomapping_done",
       cmds=cmds)
 
 kallisto_dir = dir
 
 # --------------------------------------------------------------------------------
 # identify transcripts above some potential coverage or total read count threshold
-
-dir = p.out+"/select_targets"
+dir = p.out + "/select_targets"
 id_file = "{dir}/selected_ids.txt".format(dir=dir)
 cmd = (
     '{THIS_DIR}/scripts/select_targets.py '
@@ -141,7 +136,7 @@ cmd = (
     '--min-reads {min_reads} '
     '--min-mean-coverage {min_mean_coverage} '
     '--frag-len {frag_len} '
-       )
+)
 input_args = ''
 for sample in p.input_files.keys():
     if len(p.input_files[sample]) == 0:
@@ -155,23 +150,22 @@ cmd = cmd.format(
     THIS_DIR=THIS_DIR,
     dir=dir,
     input_args=input_args,
-    min_reads = p.min_reads,
-    min_mean_coverage= p.min_mean_coverage,
-    frag_len = p.fragment_length,
+    min_reads=p.min_reads,
+    min_mean_coverage=p.min_mean_coverage,
+    frag_len=p.fragment_length,
     id_file=id_file,
 )
 
 stage(name="target coverage selection",
       dir=dir,
-      done=dir+"/target_coverage_selection_done",
+      done=dir + "/target_coverage_selection_done",
       cmd=cmd)
-
 
 # -----------------------------------------------------------------------------
 # generate fasta with selected transcripts only,
 # folder hierarchy of individual files and a file indexing
 # those paths by target name
-dir = p.out+"/filter_targets"
+dir = p.out + "/filter_targets"
 cmd = (
     '{THIS_DIR}/scripts/filter_targets.py '
     '--id-file "{id_file}" '
@@ -194,13 +188,12 @@ cmd = cmd.format(
 
 stage(name="target filtering",
       dir=dir,
-      done=dir+"/target_filtering_done",
+      done=dir + "/target_filtering_done",
       cmd=cmd)
-
 
 # -----------------------------------------------------------------------------
 # convert bam to SAM for simpler parsing
-dir = p.out+"/convert_sam"
+dir = p.out + "/convert_sam"
 cmds = []
 for sample in p.input_files.keys():
     if len(p.input_files[sample]) == 0:
@@ -211,8 +204,8 @@ for sample in p.input_files.keys():
         'samtools view -h -o "{output}" "{input}"'
     )
     cmd = cmd.format(
-        output = "{dir}/{sample}/pseudoalignments.sam",
-        input = "{kallisto_dir}/{sample}/pseudoalignments.bam"
+        output="{dir}/{sample}/pseudoalignments.sam",
+        input="{kallisto_dir}/{sample}/pseudoalignments.bam"
     )
     cmd = cmd.format(kallisto_dir=kallisto_dir,
                      dir=dir,
@@ -221,24 +214,14 @@ for sample in p.input_files.keys():
 
 stage(name="SAM conversion",
       dir=dir,
-      done=dir+"/sam_conversion_done",
+      done=dir + "/sam_conversion_done",
       cmds=cmds)
 
 sam_dir = dir
 
-# ------------------------------------------------------------------------------
-# WIP: need to handle paired end and single end, and potentially
-# large numbers of output files (>10k) - this is above the system ulimit
-
-# 1) duplicate sam file but skip headers, unmapped and excluded multimappers depending on mode
-# 2) system sort (preserving line order within groups) using target id
-#    (3rd SAM field)
-# 3) convert target-sorted SAM to multiple FASTQ files (only requires one
-#    open output file descriptor at a time)
-
-# -----------------------------------------------------------------------------
-# handle reads pseudomapping to multiple targets and reorder so R2 follows R1
-dir = p.out+"/multimapper_processed_sam"
+# -------------------------------------------------------------------------------------
+# handle reads pseudomapping to multiple targets and exclude headers and unmapped reads
+dir = p.out + "/multimapper_processed_sam"
 cmds = []
 for sample in p.input_files.keys():
     if len(p.input_files[sample]) == 0:
@@ -252,8 +235,8 @@ for sample in p.input_files.keys():
         '--multimapper-mode {multimapper_mode}'
     )
     cmd = cmd.format(
-        output = "{dir}/{sample}/pseudoalignments.sam",
-        input = "{sam_dir}/{sample}/pseudoalignments.sam",
+        output="{dir}/{sample}/pseudoalignments.sam",
+        input="{sam_dir}/{sample}/pseudoalignments.sam",
         multimapper_mode=p.multimapper_mode,
     )
     cmd = cmd.format(THIS_DIR=THIS_DIR,
@@ -264,14 +247,14 @@ for sample in p.input_files.keys():
 
 stage(name="multimapper handling",
       dir=dir,
-      done=dir+"/multimapper_handling_done",
+      done=dir + "/multimapper_handling_done",
       cmds=cmds)
 
 processed_sam_dir = dir
 
 # -----------------------------------------------------------------------------
 # sort SAM files by pseudomapped target
-dir = p.out+"/target_sorted_sam"
+dir = p.out + "/target_sorted_sam"
 cmds = []
 for sample in p.input_files.keys():
     if len(p.input_files[sample]) == 0:
@@ -285,8 +268,8 @@ for sample in p.input_files.keys():
         '"{input}"'
     )
     cmd = cmd.format(
-        output = "{dir}/{sample}/pseudoalignments.sam",
-        input = "{processed_sam_dir}/{sample}/pseudoalignments.sam",
+        output="{dir}/{sample}/pseudoalignments.sam",
+        input="{processed_sam_dir}/{sample}/pseudoalignments.sam",
     )
     cmd = cmd.format(processed_sam_dir=processed_sam_dir,
                      dir=dir,
@@ -295,15 +278,14 @@ for sample in p.input_files.keys():
 
 stage(name="SAM sorting",
       dir=dir,
-      done=dir+"/sam_sorting_done",
+      done=dir + "/sam_sorting_done",
       cmds=cmds)
 
 sorted_sam_dir = dir
 
-
 # -----------------------------------------------------------------------------
 # split sam file(s) into FASTQ or pairs of FASTQ files for each selected target transcript
-dir = p.out+"/fastq_by_target"
+dir = p.out + "/fastq_by_target"
 cmds = []
 paired_arg = '--unpaired'
 if p.paired:
@@ -322,11 +304,11 @@ for sample in p.input_files.keys():
         '--max-files-per-folder {max_files_per_folder}'
     )
     cmd = cmd.format(
-        output = "{dir}/{sample}",
-        id_file = id_file,
-        input = "{sorted_sam_dir}/{sample}/pseudoalignments.sam",
-        paired_arg = paired_arg,
-        max_files_per_folder = p.max_files_per_folder,
+        output="{dir}/{sample}",
+        id_file=id_file,
+        input="{sorted_sam_dir}/{sample}/pseudoalignments.sam",
+        paired_arg=paired_arg,
+        max_files_per_folder=p.max_files_per_folder,
     )
     cmd = cmd.format(sorted_sam_dir=sorted_sam_dir,
                      THIS_DIR=THIS_DIR,
@@ -336,111 +318,36 @@ for sample in p.input_files.keys():
 
 stage(name="SAM to FASTQ conversion and splitting",
       dir=dir,
-      done=dir+"/fastq_conversion_done",
+      done=dir + "/fastq_conversion_done",
       cmds=cmds)
 
 fastq_dir = dir
 
-
 # -----------------------------------------------------------------------------
 # run shapemapper on each batch of reads and associated target sequence
-dir = p.out+"/shapemapper"
-cmds = []
+dir = p.out + "/shapemapper"
+done = dir + "/shapemapper_done"
 
-# FIXME: maybe move this garbage to a separate script or at least
-# add a check for stage done file before loading fasta paths
-
-# load fasta paths indexed by target name
-fa_paths = {}
-f = open(fasta_locations_file, 'rU')
-for line in f:
-    s = line.strip().split('\t')
-    fa_paths[s[0]] = s[1]
-
-folders = {}
-fastqs = {}
-for sample in p.input_files.keys():
-    folders[sample] = None
-    fastqs[sample] = {} # key: folder name, contents: list of pairs of filenames
-    if len(p.input_files[sample]) == 0:
-        fastqs[sample] = None
-        continue
-    folders[sample] = [f for f in os.listdir(fastq_dir + '/' + sample)
-                       if os.path.isdir(fastq_dir+'/'+sample+'/'+f)]
-    for folder in folders[sample]:
-        filenames = os.listdir(fastq_dir + '/' + sample + '/' + folder)
-        if p.paired:
-            r1_filenames = sorted([f for f in filenames
-                                    if f.endswith("_R1.fastq")])
-            r2_filenames = sorted([f for f in filenames
-                                    if f.endswith("_R2.fastq")])
-            fastqs[sample][folder] = list(zip(r1_filenames, r2_filenames))
-        else:
-            r1_filenames = sorted([f for f in filenames
-                                   if f.endswith(".fastq")])
-            r2_filenames = [None] * len(r1_filenames)
-            fastqs[sample][folder] = list(zip(r1_filenames, r2_filenames))
-
-# FIXME: use separate folder counter here, not tied to source fastq locations
-
-for folder in folders["modified"]:
-    # FIXME: option to skip completed shapemapper jobs
-    for i in range(len(fastqs["modified"][folder])):
-        fastq_pair = fastqs["modified"][folder][i]
-        if p.paired:
-            name = fastq_pair[0].rstrip('_R1.fastq')
-        else:
-            name = fastq_pair[0].rstrip('.fastq')
-
-        cmd = (
-            "mkdir -p '{dir}/{folder}/{name}' "
-            "&& "
-            "shapemapper "
-            "--name '{name}' "
-            "--target '{target}' "
-            "--out '{dir}/{folder}/{name}' "
-            "--temp '{dir}/{folder}/{name}/temp' "
-            "--log '{dir}/{folder}/{name}/log.txt' "
-            "--overwrite "
-            "--nproc {nproc} "
-            "{shapemapper_args} "
-        )
-
-        for sample in ["modified", "untreated"]:
-            if fastqs[sample] is None:
-                continue
-            if p.paired:
-                cmd += "--{sample} --R1 '{r1}' --R2 '{r2}' ".format(
-                    r1 = fastq_dir + '/' + sample + '/' + folder + '/' + fastq_pair[0],
-                    r2 = fastq_dir + '/' + sample + '/' + folder + '/' + fastq_pair[1],
-                    sample=sample,
-                )
-            else:
-                cmd += "--{sample} --U '{r1}' ".format(
-                    r1 = fastq_dir + '/' + sample + '/' + folder + '/' + fastq_pair[0],
-                    sample=sample,
-                )
-        cmd = cmd.format(
-            name = name,
-            dir = dir,
-            folder = folder,
-            target = fa_paths[name],
-            nproc = p.nproc,
-            shapemapper_args = p.shapemapper_args,
-        )
-        cmds.append(cmd)
-
+cmds = fmt_shapemapper_cmds(
+    dir=dir,
+    fasta_locations_file=fasta_locations_file,
+    input_files=p.input_files,
+    fastq_dir=fastq_dir,
+    paired=p.paired,
+    nproc=p.nproc,
+    shapemapper_args=p.shapemapper_args,
+    max_files_per_folder=p.max_files_per_folder,
+)
 
 stage(name="ShapeMapper",
       dir=dir,
-      done=dir+"/shapemapper_done",
+      done=done,
       cmds=cmds)
-
 
 # -----------------------------------------------------------------------------
 end_time = datetime.datetime.now()
 delta = end_time - start_time
 hours, remain = divmod(delta.seconds, 3600)
 minutes, seconds = divmod(remain, 60)
-print("\nkallisto-wrapper completed. Total turnaround time {} hours, {} minutes, {} seconds".format(
-       hours, minutes, seconds))
+print("\nkallisto-txome completed. Total turnaround time {} hours, {} minutes, {} seconds".format(
+    hours, minutes, seconds))

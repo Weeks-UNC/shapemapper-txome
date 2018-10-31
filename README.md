@@ -7,9 +7,8 @@ on large numbers of transcript targets. Performs a fast
 pseudoalignment with `kallisto`, then sorts and splits output by target and runs
 separate `shapemapper` instances on each target and associated reads.
 
-This is a practical, if perhaps not ideal solution for large-scale 
-MaP studies, since sequence alignment is effectively performed twice: 
-once by `kallisto`, and again by `bowtie2` within `shapemapper`. 
+Warning: these scripts are in active development and are untested
+on large datasets.
 
 
 ### Dependencies
@@ -91,7 +90,7 @@ once by `kallisto`, and again by `bowtie2` within `shapemapper`.
 
 ### Example usage
 
-    kallisto-txome --paired --modified modified_sample --untreated untreated_sample --target 16S.fa 23S.fa TPP.fa --shapemapper-args '--random-primer-len 9'
+    kallisto-txome --shapemapper-args '--random-primer-len 9' --paired --modified modified_fastqs --untreated untreated_fastqs --target 16S.fa 23S.fa TPP.fa
 
 
 ### Testing
@@ -100,7 +99,7 @@ To run an incomplete testing dataset through the full workflow, run
 
     kallisto-txome --test
 
-This should complete without error in under 5 minutes, producing
+This should complete without error in about 1 minute, producing
 the folder `test`. Note: due to the low read depth, 
 SHAPE reactivity profiles from this dataset are not usable.
 
