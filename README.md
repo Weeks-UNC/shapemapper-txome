@@ -29,7 +29,7 @@ On a dataset from extracted _E. coli_ ribosomes modified
 with the SHAPE reagent 1-methyl-7-nitroisatoic anhydride (1M7),
 `shapemapper-txome` produces nearly identical mutation rates above
 background and effective read depths as running `shapemapper`
-directly. Values shown are from the large subunit. 
+directly. Values shown are from the large ribosomal subunit. 
 Diagonal lines are drawn with a slope of 1 (fit line not shown).
 
 Total read depths are slightly lower using `shapemapper-txome` versus
