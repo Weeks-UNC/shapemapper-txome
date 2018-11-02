@@ -2,7 +2,7 @@
 *Copyright 2018 Steven Busan*. This project is licensed under the terms of the 
 MIT license.
 
-Wrapper scripts for running [ShapeMapper2](https://github.com/Weeks-UNC/shapemapper2) 
+Wrapper for running [ShapeMapper2](https://github.com/Weeks-UNC/shapemapper2) 
 with large numbers of transcript targets. Performs a fast
 pseudoalignment with `kallisto` (or accepts an existing alignment in SAM/BAM format), 
 then sorts and bins reads by target and runs
