@@ -11,6 +11,31 @@ separate `shapemapper` instances on each target and associated reads.
 Warning: these scripts are in active development and are untested
 on large datasets.
 
+- [Validation](#validation)
+- [Dependencies](#dependencies)
+- [Parameters](#parameters)
+- [Example usage](#example-usage)
+- [Testing](#testing)
+- [Notes](#notes)
+- [Limitations](#limitations)
+
+
+### Validation
+
+On a dataset from extracted _E. coli_ ribosomes modified
+with the SHAPE reagent 1-methyl-7-nitroisatoic anhydride (1M7),
+`kallisto-txome` produces nearly identical mutation rates above
+background and effective read depths as running `shapemapper`
+directly.
+
+![1M7 example](images/1M7_example.png)
+
+On a dataset from extracted _E. coli_ ribosomes modified with
+2-methylnicotinic acid imidazolide (NAI), mutation rates and
+read depths are again nearly identical.
+
+![NAI example](images/NAI_example.png)
+
 
 ### Dependencies
 
@@ -108,10 +133,6 @@ Final shapemapper outputs will be located in `output/shapemapper`,
 inside arbitrary subdirectories to avoid large numbers of files
 in any given folder.
 
-The scripts provided here are not optimized to minimize disk usage. Expect
-output and intermediate files to have a total size 10-15x that of the
-compressed FASTQ input files.
-
 Default behavior is to discard any targets with fewer than 10
 total reads pseudoaligning in either sample (controlled with
 the `--min-reads` parameter). An alternative filter requires
@@ -119,28 +140,25 @@ a minimum estimated average read depth (controlled with the
 `--min-mean-coverage` parameter, and disabled by default). If
 enabled, this filter requires the `--fragment-length`
 
-Unpaired inputs are currently untested.
-
-Job submission platform support is currently untested (that is, 
-setting `--platform` to anything other than `local`).
-SGE is probably broken; LSF might be functional.
-
 Kallisto discards read ID past the first whitespace char, so
 these scripts also adhere to that convention. 
 
 
-### Validation
+### Limitations
 
-On a dataset from extracted _E. coli_ ribosomes modified
-with the SHAPE reagent 1-methyl-7-nitroisatoic anhydride (1M7),
-`kallisto-txome` produces nearly identical mutation rates above
-background and effective read depths as running `shapemapper`
-directly.
+All alignment information in input SAM/BAM files other than read sequence, 
+basecall quality scores, and mapped target is discarded (that is,
+shapemapper performs a second alignment). This may change in the future,
+if shapemapper is adapted to accept SAM/BAM inputs directly.
 
-![1M7 example](images/1M7_example.png)
+The scripts provided here are not optimized to minimize disk usage. Expect
+output and intermediate files to have a total size 10-15x that of the
+compressed FASTQ input files.
 
-On a dataset from extracted _E. coli_ ribosomes modified with
-2-methylnicotinic acid imidazolide (NAI), mutation rates and
-read depths are again nearly identical.
+Unpaired inputs are currently untested.
 
-![NAI example](images/NAI_example.png)
+Job submission platform support is currently untested (that is, 
+enabling subprocess parallelization by setting `--platform` 
+to anything other than `local`, and setting `--max-jobs` > 1).
+SGE is probably broken; LSF might be functional.
+

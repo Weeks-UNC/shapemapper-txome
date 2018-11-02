@@ -21,8 +21,8 @@ def iter_sam(filename):
         # skip headers
         if line[0] == '@':
             continue
-        fields = line.strip().split()
-        target = fields[2]
+        fields = line.strip().split('\t')
+        target = fields[2].split()[0]
         # skip unmapped
         if target == '*':
             continue
