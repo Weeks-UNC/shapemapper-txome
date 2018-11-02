@@ -19,8 +19,9 @@ on large datasets.
 - [Notes](#notes)
 - [Limitations](#limitations)
 
+---
 
-### Validation
+## Validation
 
 On a dataset from extracted _E. coli_ ribosomes modified
 with the SHAPE reagent 1-methyl-7-nitroisatoic anhydride (1M7),
@@ -37,7 +38,7 @@ read depths are again nearly identical.
 ![NAI example](images/NAI_example.png)
 
 
-### Dependencies
+## Dependencies
 
 - 64-bit Linux
 - python >= 2.7 (tested with 2.7.6, 2.7.15, and 3.5.5)
@@ -112,12 +113,12 @@ read depths are again nearly identical.
                         (default: 100)
 
 
-### Example usage
+## Example usage
 
   ``shapemapper-txome --shapemapper-args '--random-primer-len 9' --paired --modified modified_fastqs --untreated untreated_fastqs --target 16S.fa 23S.fa TPP.fa``
 
 
-### Testing
+## Testing
 
   ``shapemapper-txome --test``
 
@@ -127,7 +128,7 @@ the folder `test`. Note: due to the low read depth,
 SHAPE reactivity profiles from this dataset are not usable.
 
 
-### Notes
+## Notes
 
 Final shapemapper outputs will be located in `output/shapemapper`,
 inside arbitrary subdirectories to avoid large numbers of files
@@ -138,18 +139,19 @@ total reads pseudoaligning in either sample (controlled with
 the `--min-reads` parameter). An alternative filter requires
 a minimum estimated average read depth (controlled with the
 `--min-mean-coverage` parameter, and disabled by default). If
-enabled, this filter requires the `--fragment-length`
+enabled, this filter requires the `--fragment-length` and 
+`--fragment-sd` parameters.
 
 Kallisto discards read ID past the first whitespace char, so
 these scripts also adhere to that convention. 
 
 
-### Limitations
+## Limitations
 
 All alignment information in input SAM/BAM files other than read sequence, 
 basecall quality scores, and mapped target is discarded (that is,
-shapemapper performs a second alignment). This may change in the future,
-if shapemapper is adapted to accept SAM/BAM inputs directly.
+`shapemapper` performs a second alignment). This may change in the future,
+if `shapemapper` is adapted to accept SAM/BAM inputs directly.
 
 The scripts provided here are not optimized to minimize disk usage. Expect
 output and intermediate files to have a total size 10-15x that of the
