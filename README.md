@@ -30,7 +30,7 @@ with the SHAPE reagent 1-methyl-7-nitroisatoic anhydride (1M7),
 `kallisto-txome` produces nearly identical mutation rates above
 background and effective read depths as running `shapemapper`
 directly. Values shown are from the large subunit (2837 nucleotides
-shown).
+shown). Diagonal lines are drawn with a slope of 1.
 
 ## Dependencies
 
