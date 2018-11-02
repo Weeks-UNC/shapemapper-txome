@@ -6,17 +6,21 @@ from argparse import ArgumentParser as AP
 from util import gen_folder_names, makedirs
 
 ap = AP()
-ap.add_argument("--id-file", type=str, required=True)
+ap.add_argument("--id-file", type=str, required=False, default='')
 ap.add_argument("--target", type=str, nargs='+')
-ap.add_argument("--out", type=str, required=True)
+ap.add_argument("--out", type=str, required=False, default='')
 ap.add_argument("--out-dir", type=str, required=True)
 ap.add_argument("--out-fasta-paths", type=str, required=True)
 ap.add_argument("--max-files-per-folder", type=int, default=100)
 
 pa = ap.parse_args()
 
-ids = set(open(pa.id_file,"rU").read().strip().split())
-out = open(pa.out, "w")
+ids = None
+if pa.id_file is not None:
+    ids = set(open(pa.id_file,"rU").read().strip().split())
+out = None
+if pa.out != '':
+    out = open(pa.out, "w")
 
 
 def parse_fasta(filename):
@@ -69,10 +73,11 @@ seqs = {ID:"" for ID in ids}
 for fa in pa.target:
     for ID, seq in parse_fasta(fa):
         total_id_count += 1
-        if ID in ids:
+        if ids is None or ID in ids:
             selected_id_count += 1
             fmt_seq = '\n'.join([seq[i:i+80] for i in range(0, len(seq), 80)])
-            out.write(">{}\n{}\n".format(ID, fmt_seq))
+            if out is not None:
+                out.write(">{}\n{}\n".format(ID, fmt_seq))
             open_new_indiv_out(ID)
             indiv_out.write(">{}\n{}\n".format(ID, fmt_seq))
             fa_paths.write("{}\t{}\n".format(ID, fa_path))

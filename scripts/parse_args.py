@@ -69,12 +69,21 @@ def parse_unpaired_input_folder(input_folder):
     return U
 
 
-def check_fastq(path):
-    exts = [".fastq", ".fq", ".fastq.gz", ".fq.gz"]
-    if not any([path.endswith(ext) for ext in exts]):
-        raise RuntimeError('{} does not have a recognized FASTQ extension'.format(path))
+def check_exists(path):
     if not os.path.isfile(path):
-        raise RuntimeError('FASTQ file {} does not exist, or is not a regular file.'.format(path))
+        raise RuntimeError('File {} does not exist, or is not a regular file.'.format(path))
+
+
+def get_filetype(path):
+    exts = [".fastq", ".fq", ".fastq.gz", ".fq.gz"]
+    if any([path.endswith(ext) for ext in exts]):
+        return 'fastq'
+    elif path.endswith('.sam'):
+        return 'sam'
+    elif path.endswith('.bam'):
+        return 'bam'
+    else:
+        raise RuntimeError('Input file "{}" does not match any supported input file type.'.format(path))
 
 
 def parse_args(args):
@@ -85,9 +94,11 @@ def parse_args(args):
     ap.set_defaults(paired=True)
 
     ap.add_argument("--modified", type=str, nargs='+', required=True, default=argparse.SUPPRESS,
-                    help="Compressed or uncompressed FASTQ files, listed in pairs of R1 R2, or folders of the same (treated sample).")
+                    help="Input files: compressed or uncompressed FASTQ files, "
+                        "listed in pairs of R1 R2, or folders of the same, or "
+                        "SAM/BAM file (treated sample).")
     ap.add_argument("--untreated", type=str, nargs='+', required=False, default=argparse.SUPPRESS,
-                    help="Compressed or uncompressed FASTQ files, listed in pairs of R1 R2, or folders of the same (untreated sample).")
+                    help="Input files (untreated sample).")
 
     ap.add_argument("--target", type=str, nargs='+', required=True, default=argparse.SUPPRESS,
                     help="FASTA file(s) containing target sequences.")
@@ -95,14 +106,15 @@ def parse_args(args):
     ap.add_argument("--out", type=str, help="Output folder", default="output")
 
     ap.add_argument("--min-reads", type=int,
-                    help="Minimum reads pseudomapping to a target for target inclusion in shapemapper runs. (0 to disable).",
+                    help="Minimum reads mapping to a target for target inclusion in shapemapper runs. (0 to disable).",
                     default=10)
     ap.add_argument("--min-mean-coverage", type=int,
-                    help="Minumum estimated mean read depth (from pseudomapping) over the length of a given target for "
-                         "target inclusion in shapemapper runs. (0 to disable).",
+                    help="Minumum estimated mean read depth over the length of a given target for "
+                         "target inclusion in shapemapper runs. (0 to disable). "
+                         "Not applied to SAM/BAM input.",
                     default=0)
     ap.add_argument("--multimapper-mode", type=str, default='exclude',
-                    help='Behavior for a given read pseudomapping to multiple targets: '
+                    help='Behavior for a given read mapping to multiple targets: '
                          '"exclude": discard all, '
                          '"first": use first listed target, '
                          '"random": randomly select target, '
@@ -150,19 +162,30 @@ def parse_args(args):
     pa.input_files["modified"] = []
     pa.input_files["untreated"] = []
     paths = {'modified':pa.modified, 'untreated':pa.untreated}
+    pa.filetype = None
     for sample in paths.keys():
         for path in paths[sample]:
             if os.path.isdir(path):
                 # process as folder of FASTQs
+                if pa.filetype is not None and pa.filetype != 'fastq':
+                    raise RuntimeError("All input files must be of the same file type.")
+                pa.filetype = 'fastq'
                 if pa.paired:
                     pa.input_files[sample] += parse_paired_input_folder(path)
                 else:
                     pa.input_files[sample] += parse_unpaired_input_folder(path)
             else:
-                # process as FASTQ filename, assume pairs listed sequentially R1 R2 R1_a R2_b etc.
-                check_fastq(path)
+                # process as SAM/BAM or FASTQ filename, assume pairs listed sequentially R1 R2 R1_a R2_b etc.
+                check_exists(path)                
+                filetype = get_filetype(path)
+                if pa.filetype is not None and filetype != pa.filetype:
+                    raise RuntimeError("All input files must be of the same file type.")
+                pa.filetype = filetype                
                 pa.input_files[sample].append(path)
-        if pa.paired and (len(pa.input_files[sample]) % 2 != 0):
+        if all([pa.paired, 
+                pa.filetype=='fastq', 
+                (len(pa.input_files[sample]) % 2 != 0)]):
             raise RuntimeError("Expected an even number of FASTQ files with '--paired' input.")
-
+        if pa.filetype in ['sam','bam'] and len(paths[sample]) > 1:
+            raise RuntimeError("Only one SAM/BAM file is currently allowed for each input sample.")
     return pa

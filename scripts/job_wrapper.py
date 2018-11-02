@@ -373,6 +373,7 @@ def stage(dir="out",
           done="done",
           cmd=None,
           cmds=None,
+          dirs=None,
           name="job"):
     global god
     platform = god.platform
@@ -383,13 +384,15 @@ def stage(dir="out",
         s = "Running {} stage . . .".format(name)
         print('_' * len(s))
         print(s)
-        makedirs(dir)
         jobs = []
         if cmds is None:
             cmds = []
         if cmd is not None:
             cmds.append(cmd)
-        for cmd in cmds:
+        for i, cmd in enumerate(cmds):
+            if dirs is not None:
+                dir = dirs[i]
+            makedirs(dir)                
             jobs.append(Job(cmd,
                       name=name,
                       out_folder=dir,

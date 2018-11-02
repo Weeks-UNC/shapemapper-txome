@@ -14,19 +14,25 @@ from scripts.globals import god
 
 THIS_DIR = os.path.split(os.path.realpath(__file__))[0]
 
-try:
-    sys.argv[1:].index('--test')
+if '--test' in sys.argv[1:]:
     args = '''
             --paired
-            --modified test_data/modified_10k
-            --untreated test_data/untreated_10k
             --out test
             --target test_data/16S.fa
                      test_data/23S.fa
                      test_data/TPP.fa
             '''.strip().split()
     args += ['--shapemapper-args', '--random-primer-len 9']
-except ValueError:
+    if '--sam' in sys.argv[1:]:
+        args += ['--modified', 'test_data/sam/modified.sam',
+                 '--untreated', 'test_data/sam/untreated.sam']  
+    elif '--bam' in sys.argv[1:]:
+        args += ['--modified', 'test_data/bam/modified.bam',
+                 '--untreated', 'test_data/bam/untreated.bam']
+    else:
+        args += ['--modified', 'test_data/modified_10k_fastq',
+                 '--untreated', 'test_data/untreated_10k_fastq']
+else:
     args = sys.argv[1:]
 
 p = parse_args(args)
@@ -65,98 +71,244 @@ stage(name="checking fasta target names",
       done=dir + "/fasta_check_done",
       cmd=cmd)
 
-# -----------------------------------------------------------------------------
-# generate kallisto index
-dir = p.out + "/kallisto_index"
-cmd = 'kallisto index -i {dir}/index {target}'.format(dir=dir,
-                                                      target=' '.join(p.target))
-stage(name="kallisto index building",
-      dir=dir,
-      done=dir + "/kallisto_index_building_done",
-      cmd=cmd)
+kallisto_dir = p.out + "/kallisto_pseudomap"
+bam_to_sam_dir = p.out + "/convert_sam"
 
-# -----------------------------------------------------------------------------
-# run pseudomapping
-prev_dir = dir
-dir = p.out + "/kallisto_pseudomap"
-extra_flags = '--single --fragment-length {fragment_length} --sd {fragment_sd}'
-extra_flags = extra_flags.format(fragment_length=p.fragment_length,
-                                 fragment_sd=p.fragment_sd)
-if p.paired:
-    extra_flags = ''
+samples = ['modified','untreated']
+sam_paths = {}
+bam_paths = {}
+id_file = None
+if p.filetype == 'sam':
+    for sample in samples:
+        sam_paths[sample] = p.input_files[sample][0]
+elif p.filetype == 'bam':
+    for sample in samples:
+        bam_paths[sample] = p.input_files[sample][0]
+        sam_paths[sample] = "{bam_to_sam_dir}/{sample}/converted.sam".format(
+                                bam_to_sam_dir=bam_to_sam_dir, sample=sample)
+elif p.filetype == 'fastq':
+    for sample in samples:
+        bam_paths[sample] = "{kallisto_dir}/{sample}/pseudoalignments.bam".format(
+            kallisto_dir=kallisto_dir, sample=sample)
+        sam_paths[sample] = "{bam_to_sam_dir}/{sample}/pseudoalignments.sam".format(
+            bam_to_sam_dir=bam_to_sam_dir, sample=sample)
+
+if p.filetype == 'fastq':
+    # -----------------------------------------------------------------------------
+    # generate kallisto index
+    dir = p.out + "/kallisto_index"
+    cmd = 'kallisto index -i {dir}/index {target}'.format(dir=dir,
+                                                          target=' '.join(p.target))
+    stage(name="kallisto index building",
+          dir=dir,
+          done=dir + "/kallisto_index_building_done",
+          cmd=cmd)
+
+    # -----------------------------------------------------------------------------
+    # run pseudomapping
+    prev_dir = dir
+    dir = kallisto_dir
+    extra_flags = '--single --fragment-length {fragment_length} --sd {fragment_sd}'
+    extra_flags = extra_flags.format(fragment_length=p.fragment_length,
+                                     fragment_sd=p.fragment_sd)
+    if p.paired:
+        extra_flags = ''
+    cmds = []
+    for sample in p.input_files.keys():
+        if len(p.input_files[sample]) == 0:
+            continue
+        cmd = ('kallisto quant -i "{prev_dir}/index" --pseudobam --plaintext '
+               '--threads {threads} '
+               '-o "{dir}/{sample}" {inputs} {extra_flags}')
+        cmd = cmd.format(dir=dir,
+                         prev_dir=prev_dir,
+                         target=' '.join(p.target),
+                         sample=sample,
+                         inputs=' '.join(['"{}"'.format(f) for f in p.input_files[sample]]),
+                         extra_flags=extra_flags,
+                         threads=p.nproc)
+        cmds.append(cmd)
+
+    stage(name="kallisto pseudomapping to targets",
+          dir=dir,
+          done=dir + "/kallisto_pseudomapping_done",
+          cmds=cmds)
+
+
+if p.filetype in ['bam','fastq']:
+    # -----------------------------------------------------------------------------
+    # convert BAM to SAM for simpler parsing
+    dir = bam_to_sam_dir
+    cmds = []
+    for sample in p.input_files.keys():
+        if len(p.input_files[sample]) == 0:
+            continue
+        cmd = (
+            'mkdir -p "{{dir}}/{{sample}}" '
+            '&& '
+            'samtools view -h -o "{output}" "{input}"'
+        )
+        cmd = cmd.format(
+            output=sam_paths[sample],
+            input=bam_paths[sample],
+        )
+        cmd = cmd.format(dir=dir,
+                         sample=sample)
+        cmds.append(cmd)
+
+    stage(name="SAM conversion",
+          dir=dir,
+          done=dir + "/sam_conversion_done",
+          cmds=cmds)
+
+    sam_dir = dir
+
+
+# -------------------------------------------------------------------------------------
+# handle reads mapping to multiple targets and exclude headers and unmapped reads
+dir = p.out + "/multimapper_processed_sam"
 cmds = []
 for sample in p.input_files.keys():
     if len(p.input_files[sample]) == 0:
         continue
-    cmd = ('kallisto quant -i "{prev_dir}/index" --pseudobam --plaintext '
-           '--threads {threads} '
-           '-o "{dir}/{sample}" {inputs} {extra_flags}')
-    cmd = cmd.format(dir=dir,
-                     prev_dir=prev_dir,
-                     target=' '.join(p.target),
-                     sample=sample,
-                     inputs=' '.join(['"{}"'.format(f) for f in p.input_files[sample]]),
-                     extra_flags=extra_flags,
-                     threads=p.nproc)
+    cmd = (
+        'mkdir -p "{{dir}}/{{sample}}" '
+        '&& '
+        '{{THIS_DIR}}/scripts/filter_multimappers.py '
+        '--in "{input}" '
+        '--out "{output}" '
+        '--multimapper-mode {multimapper_mode}'
+    )
+    cmd = cmd.format(
+        output="{dir}/{sample}/processed.sam",
+        input=sam_paths[sample],
+        multimapper_mode=p.multimapper_mode,
+    )
+    cmd = cmd.format(THIS_DIR=THIS_DIR,
+                     dir=dir,
+                     sample=sample)
     cmds.append(cmd)
 
-stage(name="kallisto pseudomapping to targets",
+stage(name="multimapper handling",
       dir=dir,
-      done=dir + "/kallisto_pseudomapping_done",
+      done=dir + "/multimapper_handling_done",
       cmds=cmds)
 
-kallisto_dir = dir
+processed_sam_dir = dir
+
+
+# -----------------------------------------------------------------------------
+# sort SAM files by pseudomapped target
+dir = p.out + "/target_sorted_sam"
+cmds = []
+for sample in samples:
+    if len(p.input_files[sample]) == 0:
+        continue
+    cmd = (
+        'mkdir -p "{{dir}}/{{sample}}" '
+        '&& '
+        'sort --stable '
+        '-k 3,3 '
+        '-o "{output}" '
+        '"{input}"'
+    )
+    cmd = cmd.format(
+        output="{dir}/{sample}/sorted.sam",
+        input="{processed_sam_dir}/{sample}/processed.sam",
+    )
+    cmd = cmd.format(processed_sam_dir=processed_sam_dir,
+                     dir=dir,
+                     sample=sample)
+    cmds.append(cmd)
+
+stage(name="SAM sorting",
+      dir=dir,
+      done=dir + "/sam_sorting_done",
+      cmds=cmds)
+
+sorted_sam_dir = dir
+
 
 # --------------------------------------------------------------------------------
 # identify transcripts above some potential coverage or total read count threshold
 dir = p.out + "/select_targets"
 id_file = "{dir}/selected_ids.txt".format(dir=dir)
-cmd = (
-    '{THIS_DIR}/scripts/select_targets.py '
-    '--in {input_args} '
-    '--out "{id_file}" '
-    '--min-reads {min_reads} '
-    '--min-mean-coverage {min_mean_coverage} '
-    '--frag-len {frag_len} '
-)
-input_args = ''
-for sample in p.input_files.keys():
-    if len(p.input_files[sample]) == 0:
-        continue
-    input_args += (
-        '"{kallisto_dir}/{sample}/abundance.tsv" '.format(
-            kallisto_dir=kallisto_dir, sample=sample
-        )
+
+if p.filetype == 'fastq':
+    cmd = (
+        '{THIS_DIR}/scripts/select_targets.py '
+        '--in {input_args} '
+        '--out "{id_file}" '
+        '--min-reads {min_reads} '
+        '--min-mean-coverage {min_mean_coverage} '
+        '--frag-len {frag_len} '
     )
-cmd = cmd.format(
-    THIS_DIR=THIS_DIR,
-    dir=dir,
-    input_args=input_args,
-    min_reads=p.min_reads,
-    min_mean_coverage=p.min_mean_coverage,
-    frag_len=p.fragment_length,
-    id_file=id_file,
-)
+    input_args = ''
+    for sample in p.input_files.keys():
+        if len(p.input_files[sample]) == 0:
+            continue
+        input_args += (
+            '"{kallisto_dir}/{sample}/abundance.tsv" '.format(
+                kallisto_dir=kallisto_dir, sample=sample
+            )
+        )
+    cmd = cmd.format(
+        THIS_DIR=THIS_DIR,
+        dir=dir,
+        input_args=input_args,
+        min_reads=p.min_reads,
+        min_mean_coverage=p.min_mean_coverage,
+        frag_len=p.fragment_length,
+        id_file=id_file,
+    )
+
+elif p.filetype in ['sam','bam']:
+    sam = ''
+    for sample in samples:
+        if len(p.input_files[sample]) == 0:
+            continue
+        sam += '"{sorted_sam_dir}/{sample}/sorted.sam" '.format(
+            sorted_sam_dir=sorted_sam_dir,
+            sample=sample,
+        )
+    cmd = (
+        '{THIS_DIR}/scripts/select_targets_from_sam.py '
+        '--in {sam} '
+        '--out "{id_file}" '
+        '--min-reads {min_reads} '
+    )
+    cmd = cmd.format(
+        THIS_DIR=THIS_DIR,
+        dir=dir,
+        sam=sam,
+        min_reads=p.min_reads,
+        id_file=id_file,
+    )
+
+
 
 stage(name="target coverage selection",
       dir=dir,
       done=dir + "/target_coverage_selection_done",
       cmd=cmd)
 
+
 # -----------------------------------------------------------------------------
 # generate fasta with selected transcripts only,
-# folder hierarchy of individual files and a file indexing
+# folder hierarchy of individual fasta files and a file indexing
 # those paths by target name
 dir = p.out + "/filter_targets"
 cmd = (
     '{THIS_DIR}/scripts/filter_targets.py '
-    '--id-file "{id_file}" '
     '--target {target} '
-    '--out "{dir}/selected_targets.fa" '
     '--out-dir "{dir}/single_seqs" '
     '--out-fasta-paths "{fasta_locations_file}" '
-    '--max-files-per-folder {max_files_per_folder}'
+    '--max-files-per-folder {max_files_per_folder} '
 )
+
+if id_file is not None:
+    cmd += '--id-file "{id_file}" '
+    #cmd += '--out "{dir}/selected_targets.fa" '
 
 fasta_locations_file = '{dir}/fasta_locations.txt'.format(dir=dir)
 cmd = cmd.format(
@@ -173,97 +325,6 @@ stage(name="target filtering",
       done=dir + "/target_filtering_done",
       cmd=cmd)
 
-# -----------------------------------------------------------------------------
-# convert bam to SAM for simpler parsing
-dir = p.out + "/convert_sam"
-cmds = []
-for sample in p.input_files.keys():
-    if len(p.input_files[sample]) == 0:
-        continue
-    cmd = (
-        'mkdir -p "{{dir}}/{{sample}}" '
-        '&& '
-        'samtools view -h -o "{output}" "{input}"'
-    )
-    cmd = cmd.format(
-        output="{dir}/{sample}/pseudoalignments.sam",
-        input="{kallisto_dir}/{sample}/pseudoalignments.bam"
-    )
-    cmd = cmd.format(kallisto_dir=kallisto_dir,
-                     dir=dir,
-                     sample=sample)
-    cmds.append(cmd)
-
-stage(name="SAM conversion",
-      dir=dir,
-      done=dir + "/sam_conversion_done",
-      cmds=cmds)
-
-sam_dir = dir
-
-# -------------------------------------------------------------------------------------
-# handle reads pseudomapping to multiple targets and exclude headers and unmapped reads
-dir = p.out + "/multimapper_processed_sam"
-cmds = []
-for sample in p.input_files.keys():
-    if len(p.input_files[sample]) == 0:
-        continue
-    cmd = (
-        'mkdir -p "{{dir}}/{{sample}}" '
-        '&& '
-        '{{THIS_DIR}}/scripts/filter_multimappers.py '
-        '--in "{input}" '
-        '--out "{output}" '
-        '--multimapper-mode {multimapper_mode}'
-    )
-    cmd = cmd.format(
-        output="{dir}/{sample}/pseudoalignments.sam",
-        input="{sam_dir}/{sample}/pseudoalignments.sam",
-        multimapper_mode=p.multimapper_mode,
-    )
-    cmd = cmd.format(THIS_DIR=THIS_DIR,
-                     dir=dir,
-                     sam_dir=sam_dir,
-                     sample=sample)
-    cmds.append(cmd)
-
-stage(name="multimapper handling",
-      dir=dir,
-      done=dir + "/multimapper_handling_done",
-      cmds=cmds)
-
-processed_sam_dir = dir
-
-# -----------------------------------------------------------------------------
-# sort SAM files by pseudomapped target
-dir = p.out + "/target_sorted_sam"
-cmds = []
-for sample in p.input_files.keys():
-    if len(p.input_files[sample]) == 0:
-        continue
-    cmd = (
-        'mkdir -p "{{dir}}/{{sample}}" '
-        '&& '
-        'sort --stable '
-        '-k 3,3 '
-        '-o "{output}" '
-        '"{input}"'
-    )
-    cmd = cmd.format(
-        output="{dir}/{sample}/pseudoalignments.sam",
-        input="{processed_sam_dir}/{sample}/pseudoalignments.sam",
-    )
-    cmd = cmd.format(processed_sam_dir=processed_sam_dir,
-                     dir=dir,
-                     sample=sample)
-    cmds.append(cmd)
-
-stage(name="SAM sorting",
-      dir=dir,
-      done=dir + "/sam_sorting_done",
-      cmds=cmds)
-
-sorted_sam_dir = dir
 
 # -----------------------------------------------------------------------------
 # split sam file(s) into FASTQ or pairs of FASTQ files for each selected target transcript
@@ -272,7 +333,7 @@ cmds = []
 paired_arg = '--unpaired'
 if p.paired:
     paired_arg = '--paired'
-for sample in p.input_files.keys():
+for sample in samples:
     if len(p.input_files[sample]) == 0:
         continue
     cmd = (
@@ -288,7 +349,7 @@ for sample in p.input_files.keys():
     cmd = cmd.format(
         output="{dir}/{sample}",
         id_file=id_file,
-        input="{sorted_sam_dir}/{sample}/pseudoalignments.sam",
+        input="{sorted_sam_dir}/{sample}/sorted.sam",
         paired_arg=paired_arg,
         max_files_per_folder=p.max_files_per_folder,
     )
@@ -310,7 +371,7 @@ fastq_dir = dir
 dir = p.out + "/shapemapper"
 done = dir + "/shapemapper_done"
 
-cmds = fmt_shapemapper_cmds(
+cmds, dirs = fmt_shapemapper_cmds(
     dir=dir,
     fasta_locations_file=fasta_locations_file,
     input_files=p.input_files,
@@ -322,7 +383,7 @@ cmds = fmt_shapemapper_cmds(
 )
 
 stage(name="ShapeMapper",
-      dir=dir,
+      dirs=dirs,
       done=done,
       cmds=cmds)
 

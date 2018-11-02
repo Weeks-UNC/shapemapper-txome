@@ -1,10 +1,11 @@
-# kallisto-txome
+# shapemapper-txome
 *Copyright 2018 Steven Busan*. This project is licensed under the terms of the 
 MIT license.
 
 Wrapper scripts for running [ShapeMapper2](https://github.com/Weeks-UNC/shapemapper2) 
-on large numbers of transcript targets. Performs a fast
-pseudoalignment with `kallisto`, then sorts and splits output by target and runs
+with large numbers of transcript targets. Performs a fast
+pseudoalignment with `kallisto` (or accepts an existing alignment in SAM/BAM format), 
+then sorts and bins reads by target and runs
 separate `shapemapper` instances on each target and associated reads.
 
 Warning: these scripts are in active development and are untested
@@ -29,13 +30,11 @@ on large datasets.
     --unpaired
 
     --modified <file|folder> [<fileB|folderB> ...] 
-                        Compressed or uncompressed FASTQ files, listed in
-                        pairs of R1 R2, or folders of the same (treated
-                        sample).
+                        Input files: compressed or uncompressed FASTQ files, 
+                        listed in pairs of R1 R2, or folders of the same, or 
+                        SAM/BAM file (treated sample).
     --untreated <file|folder> [<fileB|folderB> ...]
-                        Compressed or uncompressed FASTQ files, listed in
-                        pairs of R1 R2, or folders of the same (untreated
-                        sample).
+                        Input files (untreated sample).
 
     --target <target1.fa> [<target2.fa> ...]
                         FASTA file(s) containing target sequences.
@@ -90,12 +89,12 @@ on large datasets.
 
 ### Example usage
 
-  ``kallisto-txome --shapemapper-args '--random-primer-len 9' --paired --modified modified_fastqs --untreated untreated_fastqs --target 16S.fa 23S.fa TPP.fa``
+  ``shapemapper-txome --shapemapper-args '--random-primer-len 9' --paired --modified modified_fastqs --untreated untreated_fastqs --target 16S.fa 23S.fa TPP.fa``
 
 
 ### Testing
 
-  ``kallisto-txome --test``
+  ``shapemapper-txome --test``
 
 This will run on a partial dataset included with these scripts. 
 It should complete without error in about 1 minute, producing

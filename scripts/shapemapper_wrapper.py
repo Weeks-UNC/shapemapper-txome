@@ -13,6 +13,7 @@ def fmt_shapemapper_cmds(dir='',
                          done='',
                          max_files_per_folder=100):
     cmds = []
+    dirs = []
 
     # check for stage done file before loading fasta paths
     if os.path.isfile(done):
@@ -107,4 +108,7 @@ def fmt_shapemapper_cmds(dir='',
                 dest_folder=dest_folder,
             )
             cmds.append(cmd)
-    return cmds
+            dirs.append('{dir}/{dest_folder}/{name}'.format(dir=dir, 
+                                                            dest_folder=dest_folder,
+                                                            name=target_name))
+    return cmds, dirs
