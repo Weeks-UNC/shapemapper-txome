@@ -48,7 +48,7 @@ read depths are again nearly identical.
 - [ShapeMapper2](https://github.com/Weeks-UNC/shapemapper2) (tested with 2.1.2 and 2.1.3)
 
 
-### Parameters
+## Parameters
 
     -h, --help          show help message and exit
 
