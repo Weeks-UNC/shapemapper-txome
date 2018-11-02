@@ -23,20 +23,14 @@ on large datasets.
 
 ## Validation
 
+![1M7 example](images/1M7_example.png)
+
 On a dataset from extracted _E. coli_ ribosomes modified
 with the SHAPE reagent 1-methyl-7-nitroisatoic anhydride (1M7),
 `kallisto-txome` produces nearly identical mutation rates above
 background and effective read depths as running `shapemapper`
-directly.
-
-![1M7 example](images/1M7_example.png)
-
-On a dataset from extracted _E. coli_ ribosomes modified with
-2-methylnicotinic acid imidazolide (NAI), mutation rates and
-read depths are again nearly identical.
-
-![NAI example](images/NAI_example.png)
-
+directly. Values shown are from the large subunit (2837 nucleotides
+shown).
 
 ## Dependencies
 
