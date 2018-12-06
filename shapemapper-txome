@@ -371,6 +371,12 @@ fastq_dir = dir
 dir = p.out + "/shapemapper"
 done = dir + "/shapemapper_done"
 
+
+try:
+    shapemapper_args = p.shapemapper_args
+except AttributeError:
+    shapemapper_args = ''
+
 cmds, dirs = fmt_shapemapper_cmds(
     dir=dir,
     fasta_locations_file=fasta_locations_file,
@@ -378,7 +384,7 @@ cmds, dirs = fmt_shapemapper_cmds(
     fastq_dir=fastq_dir,
     paired=p.paired,
     nproc=p.nproc,
-    shapemapper_args=p.shapemapper_args,
+    shapemapper_args=shapemapper_args,
     max_files_per_folder=p.max_files_per_folder,
 )
 
