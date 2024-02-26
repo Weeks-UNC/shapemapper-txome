@@ -142,6 +142,13 @@ enabled, this filter requires the `--fragment-length` and
 Kallisto discards read ID past the first whitespace char, so
 these scripts also adhere to that convention. 
 
+## Input Transcriptome
+Shapemapper-txome requires the user to input a reference transcriptome in
+the form of a fasta file containing all sequences to be aligned to. Full 
+transcriptome fasta files are easy to find, with the [MANE](https://www.ncbi.nlm.nih.gov/refseq/MANE/)
+annotation being an example for the human transcriptome. Users can also
+choose to input a custom transcriptome only containing sequences that
+they are specifically interested in.
 
 ## Limitations
 
