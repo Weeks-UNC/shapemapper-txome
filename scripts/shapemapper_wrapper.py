@@ -1,7 +1,7 @@
 import os
 
-from util import gen_folder_names
-from util import makedirs
+from .util import gen_folder_names
+from .util import makedirs
 
 def fmt_shapemapper_cmds(dir='',
                          fasta_locations_file='',

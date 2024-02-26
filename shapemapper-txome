@@ -209,6 +209,8 @@ for sample in samples:
         '&& '
         'sort --stable '
         '-k 3,3 '
+        '-S 20% '
+        '-T "{{dir}}/{{sample}}" '
         '-o "{output}" '
         '"{input}"'
     )
