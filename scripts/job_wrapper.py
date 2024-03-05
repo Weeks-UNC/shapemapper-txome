@@ -400,14 +400,8 @@ def stage(dir="out",
         success = run_jobs(jobs,
                            platform=platform,
                            max_concurrent_jobs=max_jobs)
-
         if success:
-            try:
-                os.mknod(done)
-                print(". . . successfully completed {} at {}.".format(name, timestamp()))
-            except OSError:
-                print(". . . (passed) unable to make node {} at {}.".format(name, timestamp()))
-                pass
-
+            os.mknod(done)
+            print(". . . successfully completed {} at {}.".format(name, timestamp()))
         else:
             sys.exit(1)
