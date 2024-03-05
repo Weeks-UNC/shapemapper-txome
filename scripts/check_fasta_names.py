@@ -25,7 +25,7 @@ def parse_fasta(filename):
     # handle final sequence
     yield ID, seq
 
-allowed_chars = set(string.uppercase + string.lowercase + string.digits + '-_=+.,')
+allowed_chars = set(string.ascii_uppercase + string.ascii_lowercase + string.digits + '-_=+.,')
 
 for filename in pa.target:
     for name, seq in parse_fasta(filename):
